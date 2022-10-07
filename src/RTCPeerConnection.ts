@@ -500,19 +500,13 @@ export default class RTCPeerConnection extends defineCustomEventTarget(...PEER_C
 
             // Get the stream object from the event. Create if necessary.
             const streams = ev.streams.map(streamInfo => {
-                // Here we are making sure that we don't create stream objects that already exist
-                // So that event listeners do get the same object if it has been created before.
-                if (!this._remoteStreams.has(streamInfo.streamId)) {
-                    const stream = new MediaStream({
-                        streamId: streamInfo.streamId,
-                        streamReactTag: streamInfo.streamReactTag,
-                        tracks: []
-                    });
+                const stream = new MediaStream({
+                    streamId: streamInfo.streamId,
+                    streamReactTag: streamInfo.streamReactTag,
+                    tracks: []
+                });
 
-                    this._remoteStreams.set(streamInfo.streamId, stream);
-                }
-
-                const stream = this._remoteStreams.get(streamInfo.streamId);
+                this._remoteStreams.set(streamInfo.streamId, stream);
 
                 stream?._tracks.push(track);
 
