@@ -70,15 +70,8 @@ class DataChannelWrapper implements DataChannel.Observer {
             buffer.data.get(bytes);
         }
 
-        String type;
-        String data;
-        if (buffer.binary) {
-            type = "binary";
-            data = Base64.encodeToString(bytes, Base64.NO_WRAP);
-        } else {
-            type = "text";
-            data = new String(bytes, StandardCharsets.UTF_8);
-        }
+        String type = "text";
+        String data = new String(bytes, StandardCharsets.UTF_8);
         params.putString("type", type);
         params.putString("data", data);
 
