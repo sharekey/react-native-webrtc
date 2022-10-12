@@ -755,9 +755,13 @@ RCT_EXPORT_METHOD(peerConnectionRemoveTrack:(nonnull NSNumber *)objectID
 - (void)peerConnection:(RTC_OBJC_TYPE(RTCPeerConnection) *)peerConnection didAddReceiver:(RTC_OBJC_TYPE(RTCRtpReceiver) *)rtpReceiver
                streams:(NSArray<RTC_OBJC_TYPE(RTCMediaStream) *> *)mediaStreams {
     dispatch_async(self.workerQueue, ^{
+        RCTLogWarn(@"PeerConnection %@ didAddReceiver %@", peerConnection.reactTag, rtpReceiver.receiverId);
+        
         RTCRtpTransceiver *transceiver = nil;
+        
         for (RTCRtpTransceiver *t in peerConnection.transceivers) {
             if ([rtpReceiver.receiverId isEqual: t.receiver.receiverId]) {
+                RCTLogWarn(@"Transceiver Found %@", t.receiver.receiverId);
                 transceiver = t;
                 break;
             }
@@ -776,35 +780,34 @@ RCT_EXPORT_METHOD(peerConnectionRemoveTrack:(nonnull NSNumber *)objectID
         
         if (track.kind == kRTCMediaStreamTrackKindVideo) {
             RTCVideoTrack *videoTrack = (RTCVideoTrack *)track;
-            [peerConnection addVideoTrackAdapter: videoTrack];
+            [peerConnection addVideoTrackAdapter:videoTrack];
         }
         
         peerConnection.remoteTracks[track.trackId] = track;
         
-        NSMutableDictionary *params = [NSMutableDictionary new];
         NSMutableArray *streams = [NSMutableArray new];
+        NSMutableDictionary *params = [NSMutableDictionary new];
         
+        
+//        NSLog(@"TEST: Remote tracks: ");
+//        for (NSString * key in [peerConnection.remoteTracks allKeys]) {
+//            NSLog(@"TEST: Remote trackId: %@", key);
+//        }
+//
+//        NSLog(@"TEST: Remote streams: ");
+//        for (NSString * key in [peerConnection.remoteStreams allKeys]) {
+//            NSLog(@"TEST: Remote stream for key: %@", key);
+//            RTCMediaStream* remoteStream = [peerConnection.remoteStreams objectForKey:key];
+//            NSLog(@"TEST: stream: %@", remoteStream);
+//        }
+        
+//        NSLog(@"TEST: Coming streams: ");
         for (RTCMediaStream * stream in mediaStreams) {
-            NSString *streamReactTag = nil;
+//            NSLog(@"TEST: Coming stream: %@", stream);
 
-            for (NSString * key in [peerConnection.remoteStreams allKeys]) {
-                if ([[peerConnection.remoteStreams objectForKey:key] isEqual:stream]) {
-                    streamReactTag = key;
-                    break;
-                }
-            }
+            peerConnection.remoteStreams[stream.streamId] = stream;
             
-            if (!peerConnection.remoteStreams[stream.streamId]) {
-                peerConnection.remoteStreams[stream.streamId] = stream;
-            }
-            
-            if (!streamReactTag) {
-                NSUUID *uuid = [NSUUID UUID];
-                streamReactTag = [uuid UUIDString];
-                peerConnection.remoteStreams[streamReactTag] = stream;
-            }
-            
-            [streams addObject:[SerializeUtils streamToJSONWithPeerConnectionId:peerConnection.reactTag stream:stream streamReactTag:streamReactTag]];
+            [streams addObject:[SerializeUtils streamToJSONWithPeerConnectionId:peerConnection.reactTag stream:stream streamReactTag:stream.streamId]];
         }
         
         params[@"streams"] = streams;
@@ -818,16 +821,24 @@ RCT_EXPORT_METHOD(peerConnectionRemoveTrack:(nonnull NSNumber *)objectID
     });
 }
 
+- (void)peerConnection:(RTCPeerConnection *)peerConnection didRemoveReceiver:(RTCRtpReceiver *)rtpReceiver {
+    RCTLogWarn(@"PeerConnection %@ didRemoveReceiver %@", peerConnection.reactTag, rtpReceiver.receiverId);
+}
+
+- (void)peerConnection:(RTCPeerConnection *)peerConnection didStartReceivingOnTransceiver:(RTCRtpTransceiver *)transceiver {
+    RCTLogWarn(@"PeerConnection %@ didStartReceivingOnTransceiver %@", peerConnection.reactTag, transceiver.receiver.receiverId);
+}
+
 - (void)peerConnection:(nonnull RTCPeerConnection *)peerConnection didRemoveIceCandidates:(nonnull NSArray<RTCIceCandidate *> *)candidates {
     // Unimplemented, there is no matching web API.
 }
 
 - (void)peerConnection:(nonnull RTCPeerConnection *)peerConnection didAddStream:(nonnull RTCMediaStream *)stream {
-    // Unused in Unified Plan.
+    RCTLogWarn(@"PeerConnection %@ didAddStream %@", peerConnection.reactTag, stream.streamId);
 }
 
 - (void)peerConnection:(nonnull RTCPeerConnection *)peerConnection didRemoveStream:(nonnull RTCMediaStream *)stream {
-    // Unused in Unified Plan.
+    RCTLogWarn(@"PeerConnection %@ didRemoveStream %@", peerConnection.reactTag, stream.streamId);
 }
 
 @end

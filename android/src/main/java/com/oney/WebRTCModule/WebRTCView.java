@@ -184,7 +184,7 @@ public class WebRTCView extends ViewGroup {
                 List<VideoTrack> videoTracks = stream.videoTracks;
 
                 if (!videoTracks.isEmpty()) {
-                    videoTrack = videoTracks.get(0);
+                    videoTrack = videoTracks.get(videoTracks.size() - 1);
                 }
             }
 
