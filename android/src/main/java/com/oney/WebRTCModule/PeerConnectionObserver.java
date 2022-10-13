@@ -385,12 +385,13 @@ class PeerConnectionObserver implements PeerConnection.Observer {
             for (MediaStream stream : mediaStreams) {
                 // Getting the streamReactTag
                 String streamReactTag = null;
-                for (Map.Entry<String, MediaStream> e : remoteStreams.entrySet()) {
-                    if (e.getValue().equals(stream)) {
-                        streamReactTag = e.getKey();
-                        break;
-                    }
-                }
+                // TODO: consider to not create always a new one :)
+                // for (Map.Entry<String, MediaStream> e : remoteStreams.entrySet()) {
+                //     if (e.getValue().equals(stream)) {
+                //         streamReactTag = e.getKey();
+                //         break;
+                //     }
+                // }
                 if (streamReactTag == null) {
                     streamReactTag = UUID.randomUUID().toString();
                     remoteStreams.put(streamReactTag, stream);
