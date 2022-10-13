@@ -801,13 +801,28 @@ RCT_EXPORT_METHOD(peerConnectionRemoveTrack:(nonnull NSNumber *)objectID
 //            NSLog(@"TEST: stream: %@", remoteStream);
 //        }
         
-//        NSLog(@"TEST: Coming streams: ");
         for (RTCMediaStream * stream in mediaStreams) {
-//            NSLog(@"TEST: Coming stream: %@", stream);
+          //  NSLog(@"TEST: Coming stream: %@", stream);
+            NSString *streamReactTag = nil;
 
-            peerConnection.remoteStreams[stream.streamId] = stream;
+            for (NSString * key in [peerConnection.remoteStreams allKeys]) {
+                if ([[peerConnection.remoteStreams objectForKey:key] isEqual:stream]) {
+                    streamReactTag = key;
+                    break;
+                }
+            }
             
-            [streams addObject:[SerializeUtils streamToJSONWithPeerConnectionId:peerConnection.reactTag stream:stream streamReactTag:stream.streamId]];
+            if (!peerConnection.remoteStreams[stream.streamId]) {
+                peerConnection.remoteStreams[stream.streamId] = stream;
+            }
+            
+            if (!streamReactTag) {
+                NSUUID *uuid = [NSUUID UUID];
+                streamReactTag = [uuid UUIDString];
+                peerConnection.remoteStreams[streamReactTag] = stream;
+            }
+            
+            [streams addObject:[SerializeUtils streamToJSONWithPeerConnectionId:peerConnection.reactTag stream:stream streamReactTag:streamReactTag]];
         }
         
         params[@"streams"] = streams;
