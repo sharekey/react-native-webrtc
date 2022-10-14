@@ -254,7 +254,7 @@ public class SerializeUtils {
     }
 
     public static RtpTransceiver.RtpTransceiverInit parseTransceiverOptions(ReadableMap map) {
-        RtpTransceiver.RtpTransceiverDirection direction = RtpTransceiver.RtpTransceiverDirection.INACTIVE;
+        RtpTransceiver.RtpTransceiverDirection direction = RtpTransceiver.RtpTransceiverDirection.SEND_RECV;
         ArrayList<String> streamIds = new ArrayList<>();
         if (map != null) {
             if (map.hasKey("direction")) {

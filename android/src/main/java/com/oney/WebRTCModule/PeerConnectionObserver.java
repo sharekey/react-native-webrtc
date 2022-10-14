@@ -385,7 +385,8 @@ class PeerConnectionObserver implements PeerConnection.Observer {
             for (MediaStream stream : mediaStreams) {
                 // Getting the streamReactTag
                 String streamReactTag = null;
-                // TODO: consider to not create always a new one :)
+                // TODO: consider to not create always a new one:)
+                // Done to avoid bug with WebRTCView, when destroying previous stream (other user add stream)
                 // for (Map.Entry<String, MediaStream> e : remoteStreams.entrySet()) {
                 //     if (e.getValue().equals(stream)) {
                 //         streamReactTag = e.getKey();
@@ -417,6 +418,7 @@ class PeerConnectionObserver implements PeerConnection.Observer {
      */
     @Override
     public void onTrack(final RtpTransceiver transceiver) {
+        Log.w(TAG, "PeerConnection didStartReceivingOnTransceiver" + transceiver.getReceiver().id());
     }
 
     /*
