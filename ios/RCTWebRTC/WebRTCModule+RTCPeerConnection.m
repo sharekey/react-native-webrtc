@@ -862,6 +862,8 @@ RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(peerConnectionRemoveTrack:(nonnull NSNumb
 
 - (void)peerConnection:(RTC_OBJC_TYPE(RTCPeerConnection) *)peerConnection
      didRemoveReceiver:(RTC_OBJC_TYPE(RTCRtpReceiver) *)rtpReceiver {
+    RCTLogWarn(@"PeerConnection %@ didRemoveReceiver %@", peerConnection.reactTag, rtpReceiver.receiverId);
+
     dispatch_async(self.workerQueue, ^{
         RTCMediaStreamTrack *track = rtpReceiver.track;
 
@@ -872,10 +874,6 @@ RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(peerConnectionRemoveTrack:(nonnull NSNumb
 
         [self sendEventWithName: kEventPeerConnectionOnRemoveTrack body: params];
     });
-}
-
-- (void)peerConnection:(RTCPeerConnection *)peerConnection didRemoveReceiver:(RTCRtpReceiver *)rtpReceiver {
-    RCTLogWarn(@"PeerConnection %@ didRemoveReceiver %@", peerConnection.reactTag, rtpReceiver.receiverId);
 }
 
 - (void)peerConnection:(RTCPeerConnection *)peerConnection didStartReceivingOnTransceiver:(RTCRtpTransceiver *)transceiver {
