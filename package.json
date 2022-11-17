@@ -31,6 +31,8 @@
   },
   "scripts": {
     "lint": "eslint --max-warnings 0 . && tsc --noEmit",
+    "postinstall": "node tools/downloadWebRTC.js",
+    "prepare": "husky install && bob build"
   },
   "bugs": {
     "url": "https://github.com/react-native-webrtc/react-native-webrtc/issues"
@@ -44,6 +46,7 @@
     "husky": "7.0.2",
     "lint-staged": "11.2.3",
     "prettier": "2.4.1",
+    "react-native": "0.70.5",
     "react-native-builder-bob": "0.18.2",
     "typescript": "4.6.2"
   },
