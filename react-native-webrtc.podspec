@@ -20,4 +20,5 @@ Pod::Spec.new do |s|
   s.framework           = 'AudioToolbox','AVFoundation', 'CoreAudio', 'CoreGraphics', 'CoreVideo', 'GLKit', 'VideoToolbox'
   s.dependency          'React-Core'
   s.dependency          'JitsiWebRTC', '~> 106.0.0'
+  s.dependency          'GoogleMLKit/SegmentationSelfie', '~> 3.2.0'
 end

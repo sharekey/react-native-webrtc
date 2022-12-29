@@ -24,6 +24,7 @@
 		4EE3A8D425B841DD00FAA24A /* ScreenCapturer.m in Sources */ = {isa = PBXBuildFile; fileRef = 4EE3A8CD25B841DD00FAA24A /* ScreenCapturer.m */; };
 		D3FF699919D2664B25C9D458 /* Pods_RCTWebRTC.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A20F721AD842563B66292D5B /* Pods_RCTWebRTC.framework */; };
 		DEC96577264176C10052DB35 /* DataChannelWrapper.m in Sources */ = {isa = PBXBuildFile; fileRef = DEC96576264176C10052DB35 /* DataChannelWrapper.m */; };
+		E998AE132959E44200895143 /* VideoSourceInterceptor.m in Sources */ = {isa = PBXBuildFile; fileRef = E998AE122959E44200895143 /* VideoSourceInterceptor.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -73,6 +74,8 @@
 		A20F721AD842563B66292D5B /* Pods_RCTWebRTC.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_RCTWebRTC.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		DEC96576264176C10052DB35 /* DataChannelWrapper.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = DataChannelWrapper.m; path = RCTWebRTC/DataChannelWrapper.m; sourceTree = "<group>"; };
 		DEC96579264176DF0052DB35 /* DataChannelWrapper.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = DataChannelWrapper.h; path = RCTWebRTC/DataChannelWrapper.h; sourceTree = "<group>"; };
+		E998AE112959E44200895143 /* VideoSourceInterceptor.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = VideoSourceInterceptor.h; path = RCTWebRTC/VideoSourceInterceptor.h; sourceTree = "<group>"; };
+		E998AE122959E44200895143 /* VideoSourceInterceptor.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = VideoSourceInterceptor.m; path = RCTWebRTC/VideoSourceInterceptor.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -93,7 +96,6 @@
 				1A7E646283326F2A95C8C1FA /* Pods-RCTWebRTC.debug.xcconfig */,
 				131131FC732883F1EF6F2CA3 /* Pods-RCTWebRTC.release.xcconfig */,
 			);
-			name = Pods;
 			path = Pods;
 			sourceTree = "<group>";
 		};
@@ -148,6 +150,8 @@
 				4EE3A8C825B841DD00FAA24A /* SocketConnection.m */,
 				DEC96579264176DF0052DB35 /* DataChannelWrapper.h */,
 				DEC96576264176C10052DB35 /* DataChannelWrapper.m */,
+				E998AE112959E44200895143 /* VideoSourceInterceptor.h */,
+				E998AE122959E44200895143 /* VideoSourceInterceptor.m */,
 			);
 			name = RCTWebRTC;
 			path = ../apple/RCTWebRTC;
@@ -256,6 +260,7 @@
 				4EE3A8D125B841DD00FAA24A /* SocketConnection.m in Sources */,
 				4EE3A8BD25B8416500FAA24A /* WebRTCModule+RTCMediaStream.m in Sources */,
 				4EE3A8D325B841DD00FAA24A /* ScreenCaptureController.m in Sources */,
+				E998AE132959E44200895143 /* VideoSourceInterceptor.m in Sources */,
 				4EE3A8AC25B8412700FAA24A /* RTCVideoViewManager.m in Sources */,
 				4EE3A8C125B8416F00FAA24A /* WebRTCModule+RTCPeerConnection.m in Sources */,
 				4EE3A8A325B840DA00FAA24A /* RCTConvert+WebRTC.m in Sources */,

@@ -26,7 +26,7 @@ const App: () => React$Node = () => {
     if (!stream) {
       let s;
       try {
-        s = await mediaDevices.getUserMedia({ video: true });
+        s = await mediaDevices.getUserMedia({ video: { enableVirtualBackgroud: true } });
         setStream(s);
       } catch(e) {
         console.error(e);
