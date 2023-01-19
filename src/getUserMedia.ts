@@ -12,6 +12,7 @@ const { WebRTCModule } = NativeModules;
 interface Constraints {
     audio?: boolean | object;
     video?: boolean | object;
+    enableBlurBackgroud?: boolean;
     enableVirtualBackgroud?: boolean;
 }
 

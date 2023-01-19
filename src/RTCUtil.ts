@@ -200,9 +200,17 @@ export function normalizeConstraints(constraints) {
         }
     }
 
-    if (constraints['video'] && constraints['video'].hasOwnProperty('enableVirtualBackgroud')) {
-        if (c['video']) {
-            c['video'].enableVirtualBackgroud = true;
+    if (constraints['video']) {
+        if (constraints['video'].hasOwnProperty('enableVirtualBackgroud')) {
+            if (c['video']) {
+                c['video'].enableVirtualBackgroud = true;
+            }
+        }
+
+        if (constraints['video'].hasOwnProperty('enableBlurBackgroud')) {
+            if (c['video']) {
+                c['video'].enableBlurBackgroud = true;
+            }
         }
     }
 

@@ -43,8 +43,9 @@ public class VirtualBackgroundVideoProcessor implements VideoProcessor {
 
     private YuvFrame yuvFrame;
     private Bitmap inputFrameBitmap;
-    private int frameCounter = 0;
     private ReactApplicationContext reactContext;
+
+    public Boolean enableBlurBackground = false;
 
     final Bitmap backgroundImage;
     final Bitmap scaled;
@@ -55,11 +56,12 @@ public class VirtualBackgroundVideoProcessor implements VideoProcessor {
                     .build();
     final Segmenter segmenter = Segmentation.getClient(options);
 
-    public VirtualBackgroundVideoProcessor(ReactApplicationContext context, SurfaceTextureHelper surfaceTextureHelper) {
+    public VirtualBackgroundVideoProcessor(ReactApplicationContext context, SurfaceTextureHelper surfaceTextureHelper, Boolean enableBlur) {
         super();
 
         this.surfaceTextureHelper = surfaceTextureHelper;
         reactContext = context;
+        enableBlurBackground = enableBlur;
 
         backgroundImage = BitmapFactory.decodeResource(reactContext.getResources(), R.drawable.portrait_background);
         scaled = Bitmap.createScaledBitmap(backgroundImage, backgroundImage.getWidth(), backgroundImage.getHeight(), false );
@@ -109,11 +111,8 @@ public class VirtualBackgroundVideoProcessor implements VideoProcessor {
 
     @Override
     public void onFrameCaptured(VideoFrame videoFrame) {
-
-        if(frameCounter == 0) {
             yuvFrame = new YuvFrame(videoFrame);
             inputFrameBitmap = yuvFrame.getBitmap();
-
             InputImage image = InputImage.fromBitmap(inputFrameBitmap, 0);
 
             Task<SegmentationMask> result =
@@ -136,8 +135,7 @@ public class VirtualBackgroundVideoProcessor implements VideoProcessor {
 
                                             Paint paint = new Paint();
                                             paint.setXfermode(new PorterDuffXfermode(SRC_IN));
-                                           // canvas.drawBitmap(scaled, 0, 0, paint);
-                                            canvas.drawBitmap(blurImage(inputFrameBitmap), 0, 0, paint);
+                                            canvas.drawBitmap(enableBlurBackground ? blurImage(inputFrameBitmap) : scaled, 0, 0, paint);
                                             paint.setXfermode(new PorterDuffXfermode(DST_OVER));
                                             canvas.drawBitmap(inputFrameBitmap, 0, 0, paint);
 
@@ -160,7 +158,7 @@ public class VirtualBackgroundVideoProcessor implements VideoProcessor {
                                                     VideoFrame out = new VideoFrame(i420Buf, 180, videoFrame.getTimestampNs());
 
                                                     buffer.release();
-                                                    //yuvFrame.dispose();
+                                                    yuvFrame.dispose();
 
                                                     target.onFrame(out);
                                                     out.release();
@@ -169,15 +167,6 @@ public class VirtualBackgroundVideoProcessor implements VideoProcessor {
 
                                         }
                                     });
-        }
-        updateFrameCounter();
-    }
-
-    private void updateFrameCounter() {
-        frameCounter++;
-        if(frameCounter == 3) {
-            frameCounter = 0;
-        }
     }
 
     private int[] maskColorsFromByteBuffer(SegmentationMask mask) {

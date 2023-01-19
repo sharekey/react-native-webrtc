@@ -203,7 +203,7 @@ class GetUserMediaImpl {
                 cameraEnumerator,
                 videoConstraintsMap);
 
-            videoTrack = createVideoTrack(cameraCaptureController, videoConstraintsMap.hasKey("enableVirtualBackgroud"));
+            videoTrack = createVideoTrack(cameraCaptureController, videoConstraintsMap.hasKey("enableVirtualBackgroud"), videoConstraintsMap.hasKey("enableBlurBackgroud"));
         }
 
         if (audioTrack == null && videoTrack == null) {
@@ -359,10 +359,10 @@ class GetUserMediaImpl {
         int height = displayMetrics.heightPixels;
         ScreenCaptureController screenCaptureController
             = new ScreenCaptureController(reactContext.getCurrentActivity(), width, height, mediaProjectionPermissionResultData);
-        return createVideoTrack(screenCaptureController, false);
+        return createVideoTrack(screenCaptureController, false, false);
     }
 
-    private VideoTrack createVideoTrack(AbstractVideoCaptureController videoCaptureController, Boolean enableVirtualBackgroud) {
+    private VideoTrack createVideoTrack(AbstractVideoCaptureController videoCaptureController, Boolean enableVirtualBackgroud, Boolean enableBlurBackgroud) {
         videoCaptureController.initializeVideoCapturer();
 
         VideoCapturer videoCapturer = videoCaptureController.videoCapturer;
@@ -383,8 +383,8 @@ class GetUserMediaImpl {
         VideoSource videoSource = pcFactory.createVideoSource(videoCapturer.isScreencast());
         videoCapturer.initialize(surfaceTextureHelper, reactContext, videoSource.getCapturerObserver());
 
-        if (enableVirtualBackgroud) {
-            VideoProcessor p = new VirtualBackgroundVideoProcessor(reactContext, surfaceTextureHelper);
+        if (enableVirtualBackgroud || enableBlurBackgroud) {
+            VideoProcessor p = new VirtualBackgroundVideoProcessor(reactContext, surfaceTextureHelper, enableBlurBackgroud);
             videoSource.setVideoProcessor(p);
         }
 
