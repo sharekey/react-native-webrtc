@@ -5,13 +5,11 @@ import RTCRtpSender from './RTCRtpSender';
 
 const { WebRTCModule } = NativeModules;
 
-
 export default class RTCRtpTransceiver {
     _peerConnectionId: number;
     _sender: RTCRtpSender;
     _receiver: RTCRtpReceiver;
 
-    _id: string;
     _mid: string | null = null;
     _direction: string;
     _currentDirection: string;
@@ -19,7 +17,6 @@ export default class RTCRtpTransceiver {
 
     constructor(args: {
         peerConnectionId: number,
-        id: string,
         isStopped: boolean,
         direction: string,
         currentDirection: string,
@@ -28,17 +25,12 @@ export default class RTCRtpTransceiver {
         receiver: RTCRtpReceiver,
     }) {
         this._peerConnectionId = args.peerConnectionId;
-        this._id = args.id;
-        this._mid = args.mid ? args.mid : null;
+        this._mid = args.mid ?? null;
         this._direction = args.direction;
-        this._currentDirection = args.currentDirection;
-        this._stopped = args.isStopped;
+        this._currentDirection = args.currentDirection ?? null;
+        this._stopped = Boolean(args.isStopped);
         this._sender = args.sender;
         this._receiver = args.receiver;
-    }
-
-    get id() {
-        return this._id;
     }
 
     get mid() {
@@ -59,7 +51,7 @@ export default class RTCRtpTransceiver {
         }
 
         if (this._stopped) {
-            throw Error('Transceiver Stopped');
+            throw new Error('Transceiver Stopped');
         }
 
         if (this._direction === val) {
@@ -68,7 +60,7 @@ export default class RTCRtpTransceiver {
 
         const oldDirection = this._direction;
 
-        WebRTCModule.transceiverSetDirection(this._peerConnectionId, this.id, val)
+        WebRTCModule.transceiverSetDirection(this._peerConnectionId, this.sender.id, val)
             .catch(() => {
                 this._direction = oldDirection;
             });
@@ -93,7 +85,7 @@ export default class RTCRtpTransceiver {
             return;
         }
 
-        WebRTCModule.transceiverStop(this._peerConnectionId, this.id)
+        WebRTCModule.transceiverStop(this._peerConnectionId, this.sender.id)
             .then(() => this._setStopped());
     }
 
