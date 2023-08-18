@@ -126,30 +126,22 @@ RCT_EXPORT_METHOD(dataChannelSend
 
 // Called when a data buffer was successfully received.
 - (void)dataChannel:(DataChannelWrapper *)dcw didReceiveMessageWithBuffer:(RTCDataBuffer *)buffer {
-    NSString *type;
-    NSString *data;
-    if (buffer.isBinary) {
-        type = @"binary";
-        data = [buffer.data base64EncodedStringWithOptions:0];
-    } else {
-        type = @"text";
-        // XXX NSData has a length property which means that, when it represents
-        // text, the value of its bytes property does not have to be terminated by
-        // null. In such a case, NSString's stringFromUTF8String may fail and return
-        // nil (which would crash the process when inserting data into NSDictionary
-        // without the nil protection implemented below).
-        data = [[NSString alloc] initWithData:buffer.data encoding:NSUTF8StringEncoding];
-    }
-    NSDictionary *event = @{
-        @"reactTag" : dcw.reactTag,
-        @"peerConnectionId" : dcw.pcId,
-        @"type" : type,
-        // XXX NSDictionary will crash the process upon
-        // attempting to insert nil. Such behavior is
-        // unacceptable given that protection in such a
-        // scenario is extremely simple.
-        @"data" : (data ? data : [NSNull null])
-    };
+    NSString *type = @"text";
+    // XXX NSData has a length property which means that, when it represents
+    // text, the value of its bytes property does not have to be terminated by
+    // null. In such a case, NSString's stringFromUTF8String may fail and return
+    // nil (which would crash the process when inserting data into NSDictionary
+    // without the nil protection implemented below).
+    NSString *data = [[NSString alloc] initWithData:buffer.data
+                                        encoding:NSUTF8StringEncoding];
+    NSDictionary *event = @{@"reactTag": dcw.reactTag,
+                            @"peerConnectionId": dcw.pcId,
+                            @"type": type,
+                            // XXX NSDictionary will crash the process upon
+                            // attempting to insert nil. Such behavior is
+                            // unacceptable given that protection in such a
+                            // scenario is extremely simple.
+                            @"data": (data ? data : [NSNull null])};
     [self sendEventWithName:kEventDataChannelReceiveMessage body:event];
 }
 
