@@ -28,5 +28,6 @@ android {
 
 dependencies {
     implementation 'com.facebook.react:react-native:+'
+    implementation 'org.webrtc:google-webrtc:1.0.32006'
     api fileTree(dir: 'libs', include: ['*.jar'])
 }
