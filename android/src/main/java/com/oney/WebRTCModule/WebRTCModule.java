@@ -127,6 +127,8 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
         if (adm == null) {
             adm = JavaAudioDeviceModule.builder(reactContext)
                 .setEnableVolumeLogger(false)
+                .setUseHardwareNoiseSuppressor(false)
+                .setUseHardwareAcousticEchoCanceler(false)
                 .createAudioDeviceModule();
         }
 
@@ -1051,7 +1053,7 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
         ThreadUtils.runOnExecutor(() -> {
             PeerConnectionObserver pco = mPeerConnectionObservers.get(id);
             PeerConnection peerConnection = pco.getPeerConnection();
-            
+
             if (peerConnection == null) {
                 Log.d(TAG, "peerConnectionSetRemoteDescription() peerConnection is null");
                 callback.invoke(false, "peerConnection is null");
