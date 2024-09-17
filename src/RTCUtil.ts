@@ -5,7 +5,7 @@ const DEFAULT_VIDEO_CONSTRAINTS = {
     facingMode: 'user',
     frameRate: 30,
     height: 720,
-    width: 1280
+    width: 1280,
 };
 
 const FACING_MODES = [ 'user', 'environment' ];
@@ -196,6 +196,20 @@ export function normalizeConstraints(constraints) {
                 c[mediaType] = normalizeMediaConstraints(mediaTypeConstraints, mediaType);
             } else {
                 throw new TypeError(`constraints.${mediaType} is neither a boolean nor a dictionary`);
+            }
+        }
+    }
+
+    if (constraints['video']) {
+        if (constraints['video'].hasOwnProperty('enableVirtualBackgroud')) {
+            if (c['video']) {
+                c['video'].enableVirtualBackgroud = true;
+            }
+        }
+
+        if (constraints['video'].hasOwnProperty('enableBlurBackgroud')) {
+            if (c['video']) {
+                c['video'].enableBlurBackgroud = true;
             }
         }
     }

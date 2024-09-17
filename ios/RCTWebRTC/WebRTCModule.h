@@ -19,6 +19,7 @@
 #import <WebRTC/RTCVideoTrack.h>
 #import <WebRTC/RTCDefaultVideoDecoderFactory.h>
 #import <WebRTC/RTCDefaultVideoEncoderFactory.h>
+#import "VideoSourceInterceptor.h"
 
 static NSString *const kEventPeerConnectionSignalingStateChanged = @"peerConnectionSignalingStateChanged";
 static NSString *const kEventPeerConnectionStateChanged = @"peerConnectionStateChanged";
@@ -48,6 +49,7 @@ static NSString *const kEventPeerConnectionOnError = @"peerConnectionOnError";
 @property (nonatomic, strong) NSMutableDictionary<NSNumber *, RTCPeerConnection *> *peerConnections;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, RTCMediaStream *> *localStreams;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, RTCMediaStreamTrack *> *localTracks;
+@property (nonatomic, strong) VideoSourceInterceptor *videoSourceInterceptor;
 
 - (instancetype)initWithEncoderFactory:(id<RTCVideoEncoderFactory>)encoderFactory
                         decoderFactory:(id<RTCVideoDecoderFactory>)decoderFactory;

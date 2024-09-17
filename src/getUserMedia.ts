@@ -12,6 +12,8 @@ const { WebRTCModule } = NativeModules;
 interface Constraints {
     audio?: boolean | object;
     video?: boolean | object;
+    enableBlurBackgroud?: boolean;
+    enableVirtualBackgroud?: boolean;
 }
 
 export default function getUserMedia(constraints: Constraints = {}): Promise<MediaStream> {
