@@ -1,26 +1,25 @@
-//
-//  ScreenCaptureController.m
-//  RCTWebRTC
-//
-//  Created by Alex-Dan Bumbu on 06/01/2021.
-//
+#if TARGET_OS_IOS
 
 #import "ScreenCaptureController.h"
 #import "ScreenCapturer.h"
 #import "SocketConnection.h"
 
-NSString* const kRTCScreensharingSocketFD = @"rtc_SSFD";
-NSString* const kRTCAppGroupIdentifier = @"RTCAppGroupIdentifier";
+NSString *const kRTCScreensharingSocketFD = @"rtc_SSFD";
+NSString *const kRTCAppGroupIdentifier = @"RTCAppGroupIdentifier";
 
 @interface ScreenCaptureController ()
 
-@property (nonatomic, retain) ScreenCapturer *capturer;
+@property(nonatomic, retain) ScreenCapturer *capturer;
 
+@end
+
+@interface ScreenCaptureController (CapturerEventsDelegate)<CapturerEventsDelegate>
+- (void)capturerDidEnd:(RTCVideoCapturer *)capturer;
 @end
 
 @interface ScreenCaptureController (Private)
 
-@property (nonatomic, readonly) NSString *appGroupIdentifier;
+@property(nonatomic, readonly) NSString *appGroupIdentifier;
 
 @end
 
@@ -30,8 +29,9 @@ NSString* const kRTCAppGroupIdentifier = @"RTCAppGroupIdentifier";
     self = [super init];
     if (self) {
         self.capturer = capturer;
+        self.deviceId = @"screen-capture";
     }
-    
+
     return self;
 }
 
@@ -43,7 +43,8 @@ NSString* const kRTCAppGroupIdentifier = @"RTCAppGroupIdentifier";
     if (!self.appGroupIdentifier) {
         return;
     }
-    
+
+    self.capturer.eventsDelegate = self;
     NSString *socketFilePath = [self filePathForApplicationGroupIdentifier:self.appGroupIdentifier];
     SocketConnection *connection = [[SocketConnection alloc] initWithFilePath:socketFilePath];
     [self.capturer startCaptureWithConnection:connection];
@@ -51,6 +52,19 @@ NSString* const kRTCAppGroupIdentifier = @"RTCAppGroupIdentifier";
 
 - (void)stopCapture {
     [self.capturer stopCapture];
+}
+
+- (NSDictionary *)getSettings {
+    return @{
+        @"deviceId": self.deviceId,
+        @"groupId": @"",
+        @"frameRate" : @(30)
+    };
+}
+// MARK: CapturerEventsDelegate Methods
+
+- (void)capturerDidEnd:(RTCVideoCapturer *)capturer {
+    [self.eventsDelegate capturerDidEnd:capturer];
 }
 
 // MARK: Private Methods
@@ -61,10 +75,13 @@ NSString* const kRTCAppGroupIdentifier = @"RTCAppGroupIdentifier";
 }
 
 - (NSString *)filePathForApplicationGroupIdentifier:(nonnull NSString *)identifier {
-    NSURL *sharedContainer = [[NSFileManager defaultManager] containerURLForSecurityApplicationGroupIdentifier:identifier];
+    NSURL *sharedContainer =
+        [[NSFileManager defaultManager] containerURLForSecurityApplicationGroupIdentifier:identifier];
     NSString *socketFilePath = [[sharedContainer URLByAppendingPathComponent:kRTCScreensharingSocketFD] path];
-    
+
     return socketFilePath;
 }
 
 @end
+
+#endif

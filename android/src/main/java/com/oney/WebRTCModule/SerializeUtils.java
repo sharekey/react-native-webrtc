@@ -1,23 +1,22 @@
 package com.oney.WebRTCModule;
 
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import org.webrtc.*;
-
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.ReadableMapKeySetIterator;
 import com.facebook.react.bridge.ReadableType;
-import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.WritableArray;
+import com.facebook.react.bridge.WritableMap;
+
+import org.webrtc.*;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 public class SerializeUtils {
-  
     /**
      * Serialization APIs
      */
@@ -29,17 +28,16 @@ public class SerializeUtils {
     }
 
     public static ReadableMap serializeStream(int pcId, String streamReactTag, MediaStream stream) {
-
         WritableMap params = Arguments.createMap();
         params.putString("streamId", stream.getId());
         params.putString("streamReactTag", streamReactTag);
 
         WritableArray tracks = Arguments.createArray();
 
-        for (VideoTrack track: stream.videoTracks) {
+        for (VideoTrack track : stream.videoTracks) {
             tracks.pushMap(SerializeUtils.serializeTrack(pcId, track));
         }
-        for (AudioTrack track: stream.audioTracks) {
+        for (AudioTrack track : stream.audioTracks) {
             tracks.pushMap(SerializeUtils.serializeTrack(pcId, track));
         }
 
@@ -49,7 +47,7 @@ public class SerializeUtils {
     }
 
     public static String serializeDirection(RtpTransceiver.RtpTransceiverDirection src) {
-        switch(src) {
+        switch (src) {
             case INACTIVE:
                 return "inactive";
             case RECV_ONLY:
@@ -96,7 +94,10 @@ public class SerializeUtils {
         WritableMap res = Arguments.createMap();
         res.putString("id", receiver.id());
         res.putInt("peerConnectionId", id);
-        res.putMap("track", SerializeUtils.serializeTrack(id, receiver.track()));
+        if (receiver.track() != null) {
+            res.putMap("track", SerializeUtils.serializeTrack(id, receiver.track()));
+        }
+        res.putMap("rtpParameters", SerializeUtils.serializeRtpParameters(receiver.getParameters()));
         return res;
     }
 
@@ -118,76 +119,106 @@ public class SerializeUtils {
     }
 
     public static ReadableMap serializeRtpParameters(RtpParameters params) {
-      if (params == null) return null;
+        WritableMap result = Arguments.createMap();
+        WritableArray encodings = Arguments.createArray();
+        WritableArray codecs = Arguments.createArray();
+        WritableArray headerExtensions = Arguments.createArray();
+        WritableMap rtcp = Arguments.createMap();
 
-      WritableMap result = Arguments.createMap();
-      WritableArray encodings = Arguments.createArray();
-      WritableArray codecs = Arguments.createArray();
-      WritableArray headerExtensions = Arguments.createArray();
-      WritableMap rtcp = Arguments.createMap();
+        // Preparing RTCP
+        rtcp.putString("cname", params.getRtcp().getCname());
+        rtcp.putBoolean("reducedSize", params.getRtcp().getReducedSize());
 
-      
-      // Preparing RTCP
-      rtcp.putString("cname", params.getRtcp().getCname());
-      rtcp.putBoolean("reducedSize", params.getRtcp().getReducedSize());
-      
-      
-      // Preparing header extensions
-      params.getHeaderExtensions().forEach(extension -> {
-        WritableMap extensionMap = Arguments.createMap();
-        extensionMap.putInt("id", extension.getId());
-        extensionMap.putString("uri", extension.getUri());
-        extensionMap.putBoolean("encrypted", extension.getEncrypted());
-        headerExtensions.pushMap(extensionMap);
-      });
+        // Preparing header extensions
+        params.getHeaderExtensions().forEach(extension -> {
+            WritableMap extensionMap = Arguments.createMap();
+            extensionMap.putInt("id", extension.getId());
+            extensionMap.putString("uri", extension.getUri());
+            extensionMap.putBoolean("encrypted", extension.getEncrypted());
+            headerExtensions.pushMap(extensionMap);
+        });
 
-      // Preparing encodings
-      params.encodings.forEach(encoding -> {
-        WritableMap encodingMap = Arguments.createMap();
-        encodingMap.putBoolean("active", encoding.active);
-        // Since they return integer objects that are nullable,
-        // while the map does not accept nullable integer values.
-        if (encoding.maxBitrateBps != null) {
-          encodingMap.putInt("maxBitrate", encoding.maxBitrateBps);
+        // Preparing encodings
+        params.encodings.forEach(encoding -> {
+            WritableMap encodingMap = Arguments.createMap();
+            encodingMap.putBoolean("active", encoding.active);
+            if (encoding.rid != null) {
+                encodingMap.putString("rid", encoding.rid);
+            }
+            // Since they return integer objects that are nullable,
+            // while the map does not accept nullable integer values.
+            if (encoding.maxBitrateBps != null) {
+                encodingMap.putInt("maxBitrate", encoding.maxBitrateBps);
+            }
+            if (encoding.maxFramerate != null) {
+                encodingMap.putInt("maxFramerate", encoding.maxFramerate);
+            }
+            if (encoding.scaleResolutionDownBy != null) {
+                encodingMap.putDouble("scaleResolutionDownBy", encoding.scaleResolutionDownBy);
+            }
+            encodings.pushMap(encodingMap);
+        });
+
+        // Preparing codecs
+        params.codecs.forEach(codec -> {
+            WritableMap codecMap = Arguments.createMap();
+            codecMap.putInt("payloadType", codec.payloadType);
+            codecMap.putString("mimeType", codec.name);
+            codecMap.putInt("clockRate", codec.clockRate);
+            if (codec.numChannels != null) {
+                codecMap.putInt("channels", codec.numChannels);
+            }
+            // Serializing sdpFmptLine.
+            if (!codec.parameters.isEmpty()) {
+                codecMap.putString("sdpFmtpLine", serializeSdpParameters(codec.parameters));
+            }
+
+            codecs.pushMap(codecMap);
+        });
+
+        result.putString("transactionId", params.transactionId);
+        result.putMap("rtcp", rtcp);
+        result.putArray("encodings", encodings);
+        result.putArray("codecs", codecs);
+        result.putArray("headerExtensions", headerExtensions);
+        if (params.degradationPreference != null) {
+            result.putString("degradationPreference", params.degradationPreference.toString());
         }
-        if (encoding.maxFramerate != null) {
-          encodingMap.putInt("maxFramerate", encoding.maxFramerate);
-        }
-        if (encoding.scaleResolutionDownBy != null) {
-          encodingMap.putDouble("scaleResolutionDownBy", encoding.scaleResolutionDownBy);
-        }
-        encodings.pushMap(encodingMap);
-      });
 
-      // Preparing codecs
-      params.codecs.forEach(codec -> {
+        return result;
+    }
+
+    public static ReadableMap serializeRtpCapabilities(RtpCapabilities capabilities) {
+        WritableMap result = Arguments.createMap();
+        WritableArray codecs = Arguments.createArray();
+
+        capabilities.codecs.forEach(codec -> codecs.pushMap(serializeRtpCapabilitiesCodec(codec)));
+
+        result.putArray("codecs", codecs);
+        return result;
+    }
+
+    public static ReadableMap serializeRtpCapabilitiesCodec(RtpCapabilities.CodecCapability codec) {
         WritableMap codecMap = Arguments.createMap();
-        WritableMap sdpFmptLineParams = Arguments.createMap();
-        codecMap.putInt("payloadType", codec.payloadType);
-        codecMap.putString("mimeType", codec.name);
+        codecMap.putInt("payloadType", codec.preferredPayloadType);
+        codecMap.putString("mimeType", codec.mimeType);
         codecMap.putInt("clockRate", codec.clockRate);
         if (codec.numChannels != null) {
-          codecMap.putInt("channels", codec.numChannels);
+            codecMap.putInt("channels", codec.numChannels);
         }
-        // Serializing sdpFmptLine. 
-        codec.parameters.forEach((k, v) -> {
-          sdpFmptLineParams.putString((String) k, (String) v);
-        });
-        codecMap.putMap("sdpFmtpLine", sdpFmptLineParams);
-        codecs.pushMap(codecMap);
-      });
+        if (!codec.parameters.isEmpty()) {
+            codecMap.putString("sdpFmtpLine", serializeSdpParameters(codec.parameters));
+        }
 
-      result.putString("transactionId", params.transactionId);
-      result.putMap("rtcp", rtcp);
-      result.putArray("encodings", encodings);
-      result.putArray("codecs", codecs);
-      result.putArray("headerExtensions", headerExtensions);
-      if (params.degradationPreference != null) {
-        result.putString("degradationPreference", params.degradationPreference
-          .toString());
-      }
+        return codecMap;
+    }
 
-      return result;
+    // For serializing sdpFmptLine.
+    public static String serializeSdpParameters(Map<String, String> parameters) {
+        return parameters.keySet()
+                .stream()
+                .map(key -> key + "=" + parameters.get(key))
+                .collect(Collectors.joining(";"));
     }
 
     /**
@@ -195,40 +226,41 @@ public class SerializeUtils {
      */
 
     public static RtpParameters updateRtpParameters(ReadableMap updateParams, RtpParameters rtpParams) {
-      
-      // Preparing encodings
-      ReadableArray encodingsArray = updateParams.getArray("encodings");
-      List<RtpParameters.Encoding> encodings = rtpParams.encodings;
-      if (encodingsArray.size() != encodings.size()) {
-        return null;
-      }
+        // Preparing encodings
+        ReadableArray encodingsArray = updateParams.getArray("encodings");
+        List<RtpParameters.Encoding> encodings = rtpParams.encodings;
+        if (encodingsArray.size() != encodings.size()) {
+            return null;
+        }
 
-      for (int i = 0; i < encodingsArray.size(); i++) {
-        ReadableMap encodingUpdate = encodingsArray.getMap(i);
-        RtpParameters.Encoding encoding = encodings.get(i);
-        // Dealing with nullable Integers
-        Integer maxBitrate = encodingUpdate.hasKey("maxBitrate")? encodingUpdate.getInt("maxBitrate") : null;
-        Integer maxFramerate = encodingUpdate.hasKey("maxFramerate")? encodingUpdate.getInt("maxFramerate") : null;
-        Double scaleResolutionDownBy = encodingUpdate.hasKey("scaleResolutionDownBy")? 
-          encodingUpdate.getDouble("scaleResolutionDownBy") : null;
-        
-        encoding.active = encodingUpdate.getBoolean("active");
-        encoding.maxBitrateBps = maxBitrate;
-        encoding.maxFramerate = maxFramerate;
-        encoding.scaleResolutionDownBy = scaleResolutionDownBy;
-      }
+        for (int i = 0; i < encodingsArray.size(); i++) {
+            ReadableMap encodingUpdate = encodingsArray.getMap(i);
+            RtpParameters.Encoding encoding = encodings.get(i);
+            // Dealing with nullable Integers
+            Integer maxBitrate = encodingUpdate.hasKey("maxBitrate") ? encodingUpdate.getInt("maxBitrate") : null;
+            Integer maxFramerate = encodingUpdate.hasKey("maxFramerate") ? encodingUpdate.getInt("maxFramerate") : null;
+            Double scaleResolutionDownBy = encodingUpdate.hasKey("scaleResolutionDownBy")
+                    ? encodingUpdate.getDouble("scaleResolutionDownBy")
+                    : null;
 
-      if (updateParams.hasKey("degradationPreference")) {
-        rtpParams.degradationPreference = 
-          RtpParameters.DegradationPreference.valueOf(updateParams.getString("degradationPreference"));
-      }
+            encoding.active = encodingUpdate.getBoolean("active");
+            encoding.rid = encodingUpdate.getString("rid");
+            encoding.maxBitrateBps = maxBitrate;
+            encoding.maxFramerate = maxFramerate;
+            encoding.scaleResolutionDownBy = scaleResolutionDownBy;
+        }
 
-      return rtpParams;
+        if (updateParams.hasKey("degradationPreference")) {
+            rtpParams.degradationPreference =
+                    RtpParameters.DegradationPreference.valueOf(updateParams.getString("degradationPreference"));
+        }
+
+        return rtpParams;
     }
 
     public static MediaStreamTrack.MediaType parseMediaType(String type) {
-        switch(type) {
-            case "audio": 
+        switch (type) {
+            case "audio":
                 return MediaStreamTrack.MediaType.MEDIA_TYPE_AUDIO;
             case "video":
                 return MediaStreamTrack.MediaType.MEDIA_TYPE_VIDEO;
@@ -236,7 +268,7 @@ public class SerializeUtils {
                 throw new Error("Unknown media type");
         }
     }
-    
+
     public static RtpTransceiver.RtpTransceiverDirection parseDirection(String src) {
         switch (src) {
             case "sendrecv":
@@ -247,33 +279,64 @@ public class SerializeUtils {
                 return RtpTransceiver.RtpTransceiverDirection.RECV_ONLY;
             case "inactive":
                 return RtpTransceiver.RtpTransceiverDirection.INACTIVE;
-            // Here we ignore the "stopped" direction because user code should
-            // never set it.
+                // Here we ignore the "stopped" direction because user code should
+                // never set it.
         }
         throw new Error("Invalid direction");
     }
 
+    private static RtpParameters.Encoding parseEncoding(ReadableMap params) {
+        RtpParameters.Encoding encoding = new RtpParameters.Encoding(params.getString("rid"), true, 1.0);
+
+        if (params.hasKey("active")) {
+            encoding.active = params.getBoolean("active");
+        }
+        if (params.hasKey("maxBitrate")) {
+            encoding.maxBitrateBps = params.getInt("maxBitrate");
+        }
+        if (params.hasKey("maxFramerate")) {
+            encoding.maxFramerate = params.getInt("maxFramerate");
+        }
+        if (params.hasKey("scaleResolutionDownBy")) {
+            encoding.scaleResolutionDownBy = params.getDouble("scaleResolutionDownBy");
+        }
+
+        return encoding;
+    }
+
     public static RtpTransceiver.RtpTransceiverInit parseTransceiverOptions(ReadableMap map) {
+        if (map == null) {
+            return null;
+        }
+
         RtpTransceiver.RtpTransceiverDirection direction = RtpTransceiver.RtpTransceiverDirection.SEND_RECV;
-        ArrayList<String> streamIds = new ArrayList<>();
-        if (map != null) {
-            if (map.hasKey("direction")) {
-                String directionRaw = map.getString("direction");
-                if (directionRaw != null) {
-                    direction = SerializeUtils.parseDirection(directionRaw);
+        List<String> streamIds = new ArrayList<>();
+        List<RtpParameters.Encoding> sendEncodings = new ArrayList<>();
+
+        if (map.hasKey("direction")) {
+            String directionRaw = map.getString("direction");
+            if (directionRaw != null) {
+                direction = SerializeUtils.parseDirection(directionRaw);
+            }
+        }
+        if (map.hasKey("streamIds")) {
+            ReadableArray rawStreamIds = map.getArray("streamIds");
+            if (rawStreamIds != null) {
+                for (int i = 0; i < rawStreamIds.size(); i++) {
+                    streamIds.add(rawStreamIds.getString(i));
                 }
             }
-            if (map.hasKey("streamIds")) {
-                ReadableArray rawStreamIds = map.getArray("streamIds");
-                if (rawStreamIds != null) {
-                    for (int i = 0; i < rawStreamIds.size(); i++) {
-                        streamIds.add(rawStreamIds.getString(i));
-                    }
+        }
+        if (map.hasKey("sendEncodings")) {
+            ReadableArray encodingsArray = map.getArray("sendEncodings");
+            if (encodingsArray != null) {
+                for (int i = 0; i < encodingsArray.size(); i++) {
+                    ReadableMap encoding = encodingsArray.getMap(i);
+                    sendEncodings.add(SerializeUtils.parseEncoding(encoding));
                 }
             }
         }
 
-        return new RtpTransceiver.RtpTransceiverInit(direction, streamIds);
+        return new RtpTransceiver.RtpTransceiverInit(direction, streamIds, sendEncodings);
     }
-
 }

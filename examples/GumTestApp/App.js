@@ -37,12 +37,15 @@ const App: () => React$Node = () => {
             width: +qualityWidth,
             height: +qualityHeight,
             frameRate: +frameRate,
-            ...enableBlurBackgroud && {
-                enableBlurBackgroud: true,
-            },
-            ...!enableBlurBackgroud && {
-                enableVirtualBackgroud: true,
-            },
+            enableBlurBackgroud: true
+            // enableVirtualBackgroud: true
+            // ...enableBlurBackgroud && {
+            //     enableBlurBackgroud: true,
+            // },
+            // ...!enableBlurBackgroud && {
+            //     enableVirtualBackgroud: true,
+            // },
+            
         } });
         setStream(s);
       } catch(e) {

@@ -1,9 +1,4 @@
-//
-//  CaptureController.m
-//  RCTWebRTC
-//
-//  Created by Alex-Dan Bumbu on 11/01/2021.
-//
+#if !TARGET_OS_TV
 
 #import "CaptureController.h"
 
@@ -17,4 +12,19 @@
     // subclasses needs to override
 }
 
+- (NSDictionary *) getSettings {
+    // subclasses needs to override
+    return @{
+        @"deviceId": self.deviceId
+    };
+}
+
+- (void)applyConstraints:(NSDictionary *)constraints error:(NSError **)outError {
+    *outError = [NSError errorWithDomain:@"react-native-webrtc"
+                                    code:0
+                                userInfo:@{ NSLocalizedDescriptionKey: @"This video track does not support applyConstraints."}];
+}
+
 @end
+
+#endif

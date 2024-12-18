@@ -4,27 +4,20 @@ def safeExtGet(prop, fallback) {
     rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
 }
 
-allprojects {
-    repositories {
-        google()
-        jcenter()
-        maven { url 'https://www.jitpack.io' }
-        mavenCentral()
-    }
-}
-
 android {
-    compileSdkVersion safeExtGet('compileSdkVersion', 23)
+    def agpVersion = com.android.Version.ANDROID_GRADLE_PLUGIN_VERSION
+    if (agpVersion.tokenize('.')[0].toInteger() >= 7) {
+      namespace "com.oney.WebRTCModule"
+    }
+
+    compileSdkVersion safeExtGet('compileSdkVersion', 24)
     buildToolsVersion safeExtGet('buildToolsVersion', "23.0.1")
 
     defaultConfig {
-        minSdkVersion safeExtGet('minSdkVersion', 19)
-        targetSdkVersion safeExtGet('targetSdkVersion', 23)
+        minSdkVersion 24
+        targetSdkVersion safeExtGet('targetSdkVersion', 24)
         versionCode 1
         versionName "1.0"
-        ndk {
-            abiFilters "armeabi-v7a", "x86"
-        }
     }
 
     // WebRTC requires Java 8 features
@@ -36,7 +29,7 @@ android {
 }
 
 dependencies {
-    implementation 'com.facebook.react:react-native:0.67.4'
-    implementation 'com.google.mlkit:segmentation-selfie:16.0.0-beta4'
-    api fileTree(dir: 'libs', include: ['*.jar'])
+    implementation 'com.facebook.react:react-native:+'
+    api 'org.jitsi:webrtc:124.+'
+    implementation "androidx.core:core:1.7.0"
 }
