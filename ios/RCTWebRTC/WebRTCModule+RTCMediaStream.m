@@ -13,6 +13,7 @@
 #import "ScreenCapturer.h"
 #import "TrackCapturerEventsEmitter.h"
 #import "VideoCaptureController.h"
+#import "react_native_webrtc-Swift.h"
 
 @implementation WebRTCModule (RTCMediaStream)
 
@@ -113,23 +114,29 @@
 
   NSString *trackUUID = [[NSUUID UUID] UUIDString];
   RTCVideoTrack *videoTrack = [self.peerConnectionFactory videoTrackWithSource:videoSource trackId:trackUUID];
-  
+
 #if !TARGET_IPHONE_SIMULATOR
   NSDictionary *videoContraints = constraints[@"video"];
+
   RTCCameraVideoCapturer *videoCapturer;
-  
+
   RCTLog(@"Video constraint in create video track: %@", videoContraints);
-  
+
   // If virtual backround is enabled, use video source interceptor before video source
-  if (videoContraints[@"enableVirtualBackgroud"]) {
-    self.videoSourceInterceptor = [[VideoSourceInterceptor alloc]initWithVideoSource:videoSource];
+  if (videoContraints[@"enableBlurBackgroud"]) {
+    self.videoSourceInterceptor = [[WebRTCVideoCaptureHandler alloc] initWithSource:videoSource backgroundImageData:nil];
     videoCapturer = [[RTCCameraVideoCapturer alloc] initWithDelegate:self.videoSourceInterceptor];
-  }
-  else {
+  } else if (videoContraints[@"enableVirtualBackgroud"]) {
+    NSDictionary* imageData = constraints[@"backgroundImageBase64"];
+    NSData* dataEncoded = [[NSData alloc] initWithBase64EncodedString: imageData options: 0];
+
+    self.videoSourceInterceptor = [[WebRTCVideoCaptureHandler alloc] initWithSource:videoSource backgroundImageData: dataEncoded];
+    videoCapturer = [[RTCCameraVideoCapturer alloc] initWithDelegate:self.videoSourceInterceptor];
+  } else {
     videoCapturer = [[RTCCameraVideoCapturer alloc] initWithDelegate:videoSource];
   }
-  
-  
+
+
   VideoCaptureController *videoCaptureController
   = [[VideoCaptureController alloc] initWithCapturer:videoCapturer
                                             andConstraints:videoContraints];
@@ -303,7 +310,7 @@ RCT_EXPORT_METHOD(enumerateDevices : (RCTResponseSenderBlock)callback) {
         if (device.localizedName != nil) {
             label = device.localizedName;
         }
-        
+
         [devices addObject:@{
             @"facing" : position,
             @"deviceId" : device.uniqueID,
@@ -396,7 +403,7 @@ RCT_EXPORT_METHOD(mediaStreamTrackRelease : (nonnull NSString *)trackID) {
         track.isEnabled = NO;
       [track.captureController stopCapture];
       [self.localTracks removeObjectForKey:trackID];
-      
+
       if([track.kind isEqualToString:kRTCMediaStreamTrackKindVideo]) {
         self.videoSourceInterceptor = nil;
       }

@@ -16,6 +16,7 @@ import android.renderscript.Allocation;
 import android.renderscript.Element;
 import android.renderscript.RenderScript;
 import android.renderscript.ScriptIntrinsicBlur;
+import android.util.Base64;
 
 import androidx.annotation.Nullable;
 
@@ -56,15 +57,21 @@ public class VirtualBackgroundVideoProcessor implements VideoProcessor {
                     .build();
     final Segmenter segmenter = Segmentation.getClient(options);
 
-    public VirtualBackgroundVideoProcessor(ReactApplicationContext context, SurfaceTextureHelper surfaceTextureHelper, Boolean enableBlur) {
+    public VirtualBackgroundVideoProcessor(ReactApplicationContext context, SurfaceTextureHelper surfaceTextureHelper, Boolean enableVirtualBackgroud, Boolean enableBlur, String backgroundImageBase64) {
         super();
 
         this.surfaceTextureHelper = surfaceTextureHelper;
         reactContext = context;
         enableBlurBackground = enableBlur;
 
-        backgroundImage = BitmapFactory.decodeResource(reactContext.getResources(), R.drawable.portrait_background);
-        scaled = Bitmap.createScaledBitmap(backgroundImage, backgroundImage.getWidth(), backgroundImage.getHeight(), false );
+        if (enableVirtualBackgroud && !backgroundImageBase64.isEmpty()) {
+            byte[] decodedString = Base64.decode(backgroundImageBase64, Base64.DEFAULT);
+            backgroundImage = BitmapFactory.decodeByteArray(decodedString, 0, decodedString.length);
+            scaled = Bitmap.createScaledBitmap(backgroundImage, backgroundImage.getWidth(), backgroundImage.getHeight(), false);
+        } else {
+            scaled = null;
+            backgroundImage = null;
+        }
     }
 
     @Override

@@ -195,7 +195,7 @@ class GetUserMediaImpl {
             CameraCaptureController cameraCaptureController =
                     new CameraCaptureController(reactContext.getCurrentActivity(), getCameraEnumerator(), videoConstraintsMap);
 
-            videoTrack = createVideoTrack(cameraCaptureController, videoConstraintsMap.hasKey("enableVirtualBackgroud"), videoConstraintsMap.hasKey("enableBlurBackgroud"));
+            videoTrack = createVideoTrack(cameraCaptureController, videoConstraintsMap.hasKey("enableVirtualBackgroud"), videoConstraintsMap.hasKey("enableBlurBackgroud"), videoConstraintsMap.getString("backgroundImageBase64"));
         }
 
         if (audioTrack == null && videoTrack == null) {
@@ -364,10 +364,10 @@ class GetUserMediaImpl {
         int height = displayMetrics.heightPixels;
         ScreenCaptureController screenCaptureController
             = new ScreenCaptureController(reactContext.getCurrentActivity(), width, height, mediaProjectionPermissionResultData);
-        return createVideoTrack(screenCaptureController, false, false);
+        return createVideoTrack(screenCaptureController, null, false, "");
     }
 
-    private VideoTrack createVideoTrack(AbstractVideoCaptureController videoCaptureController, Boolean enableVirtualBackgroud, Boolean enableBlurBackgroud) {
+    private VideoTrack createVideoTrack(AbstractVideoCaptureController videoCaptureController, Boolean enableVirtualBackgroud, Boolean enableBlurBackgroud, String backgroundImageBase64) {
         ScreenCaptureController screenCaptureController = new ScreenCaptureController(
                 reactContext.getCurrentActivity(), width, height, mediaProjectionPermissionResultData);
         return createVideoTrack(screenCaptureController);
@@ -399,7 +399,7 @@ class GetUserMediaImpl {
         videoCapturer.initialize(surfaceTextureHelper, reactContext, videoSource.getCapturerObserver());
 
         if (enableVirtualBackgroud || enableBlurBackgroud) {
-            VideoProcessor p = new VirtualBackgroundVideoProcessor(reactContext, surfaceTextureHelper, enableBlurBackgroud);
+            VideoProcessor p = new VirtualBackgroundVideoProcessor(reactContext, surfaceTextureHelper, enableVirtualBackgroud, enableBlurBackgroud, backgroundImageBase64);
             videoSource.setVideoProcessor(p);
         }
 

@@ -22,6 +22,8 @@
 		4EE3A8D225B841DD00FAA24A /* CaptureController.m in Sources */ = {isa = PBXBuildFile; fileRef = 4EE3A8C925B841DD00FAA24A /* CaptureController.m */; };
 		4EE3A8D325B841DD00FAA24A /* ScreenCaptureController.m in Sources */ = {isa = PBXBuildFile; fileRef = 4EE3A8CC25B841DD00FAA24A /* ScreenCaptureController.m */; };
 		4EE3A8D425B841DD00FAA24A /* ScreenCapturer.m in Sources */ = {isa = PBXBuildFile; fileRef = 4EE3A8CD25B841DD00FAA24A /* ScreenCapturer.m */; };
+		923CF7DC2D13030D0044715F /* WebRTCFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 923CF7DA2D13030D0044715F /* WebRTCFilter.swift */; };
+		923CF7DD2D13030D0044715F /* WebRTCVideoCaptureHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 923CF7DB2D13030D0044715F /* WebRTCVideoCaptureHandler.swift */; };
 		92EC774C2D0061F10066021F /* PortNameHelper.m in Sources */ = {isa = PBXBuildFile; fileRef = 92EC77472D0061F10066021F /* PortNameHelper.m */; };
 		92EC774D2D0061F10066021F /* WebRTCAudioInput.m in Sources */ = {isa = PBXBuildFile; fileRef = 92EC77492D0061F10066021F /* WebRTCAudioInput.m */; };
 		92EC774E2D0061F10066021F /* WebRTCAudioSession.m in Sources */ = {isa = PBXBuildFile; fileRef = 92EC774B2D0061F10066021F /* WebRTCAudioSession.m */; };
@@ -29,7 +31,6 @@
 		D74EF94829652169000742E1 /* TrackCapturerEventsEmitter.m in Sources */ = {isa = PBXBuildFile; fileRef = D74EF94629652169000742E1 /* TrackCapturerEventsEmitter.m */; };
 		D7F0711E2C6DC91F0031F594 /* WebRTCModule+RTCAudioSession.m in Sources */ = {isa = PBXBuildFile; fileRef = D7F0711D2C6DC91F0031F594 /* WebRTCModule+RTCAudioSession.m */; };
 		DEC96577264176C10052DB35 /* DataChannelWrapper.m in Sources */ = {isa = PBXBuildFile; fileRef = DEC96576264176C10052DB35 /* DataChannelWrapper.m */; };
-		E998AE132959E44200895143 /* VideoSourceInterceptor.m in Sources */ = {isa = PBXBuildFile; fileRef = E998AE122959E44200895143 /* VideoSourceInterceptor.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -76,6 +77,9 @@
 		4EE3A8CC25B841DD00FAA24A /* ScreenCaptureController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = ScreenCaptureController.m; path = RCTWebRTC/ScreenCaptureController.m; sourceTree = SOURCE_ROOT; };
 		4EE3A8CD25B841DD00FAA24A /* ScreenCapturer.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = ScreenCapturer.m; path = RCTWebRTC/ScreenCapturer.m; sourceTree = SOURCE_ROOT; };
 		4EE3A8CE25B841DD00FAA24A /* SocketConnection.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = SocketConnection.h; path = RCTWebRTC/SocketConnection.h; sourceTree = SOURCE_ROOT; };
+		923CF7DA2D13030D0044715F /* WebRTCFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WebRTCFilter.swift; path = RCTWebRTC/WebRTCFilter.swift; sourceTree = SOURCE_ROOT; };
+		923CF7DB2D13030D0044715F /* WebRTCVideoCaptureHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WebRTCVideoCaptureHandler.swift; path = RCTWebRTC/WebRTCVideoCaptureHandler.swift; sourceTree = SOURCE_ROOT; };
+		923CF7E22D1414470044715F /* RCTWebRTC-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "RCTWebRTC-Bridging-Header.h"; path = "RCTWebRTC/RCTWebRTC-Bridging-Header.h"; sourceTree = SOURCE_ROOT; };
 		92EC77462D0061F10066021F /* PortNameHelper.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = PortNameHelper.h; path = RCTWebRTC/PortNameHelper.h; sourceTree = SOURCE_ROOT; };
 		92EC77472D0061F10066021F /* PortNameHelper.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = PortNameHelper.m; path = RCTWebRTC/PortNameHelper.m; sourceTree = SOURCE_ROOT; };
 		92EC77482D0061F10066021F /* WebRTCAudioInput.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = WebRTCAudioInput.h; path = RCTWebRTC/WebRTCAudioInput.h; sourceTree = SOURCE_ROOT; };
@@ -90,8 +94,6 @@
 		D7F99C122938F4E0000A2450 /* WebRTCModule+RTCMediaStream.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "WebRTCModule+RTCMediaStream.h"; path = "RCTWebRTC/WebRTCModule+RTCMediaStream.h"; sourceTree = SOURCE_ROOT; };
 		DEC96576264176C10052DB35 /* DataChannelWrapper.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = DataChannelWrapper.m; path = RCTWebRTC/DataChannelWrapper.m; sourceTree = "<group>"; };
 		DEC96579264176DF0052DB35 /* DataChannelWrapper.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = DataChannelWrapper.h; path = RCTWebRTC/DataChannelWrapper.h; sourceTree = "<group>"; };
-		E998AE112959E44200895143 /* VideoSourceInterceptor.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = VideoSourceInterceptor.h; path = RCTWebRTC/VideoSourceInterceptor.h; sourceTree = "<group>"; };
-		E998AE122959E44200895143 /* VideoSourceInterceptor.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = VideoSourceInterceptor.m; path = RCTWebRTC/VideoSourceInterceptor.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -145,9 +147,12 @@
 				4EE3A8A225B840DA00FAA24A /* RCTConvert+WebRTC.h */,
 				4EE3A8A125B840DA00FAA24A /* RCTConvert+WebRTC.m */,
 				4EE3A8A525B8411400FAA24A /* RTCMediaStreamTrack+React.h */,
+				923CF7DA2D13030D0044715F /* WebRTCFilter.swift */,
+				923CF7DB2D13030D0044715F /* WebRTCVideoCaptureHandler.swift */,
 				4EE3A8A625B8411400FAA24A /* RTCMediaStreamTrack+React.m */,
 				4EE3A8AA25B8412700FAA24A /* RTCVideoViewManager.h */,
 				4EE3A8AB25B8412700FAA24A /* RTCVideoViewManager.m */,
+				923CF7E22D1414470044715F /* RCTWebRTC-Bridging-Header.h */,
 				4EE3A8AF25B8413200FAA24A /* VideoCaptureController.h */,
 				0BDDA6DF20C18B6B00B38B45 /* VideoCaptureController.m */,
 				4EE3A8B525B8414A00FAA24A /* WebRTCModule+Permissions.m */,
@@ -177,8 +182,6 @@
 				4EE3A8C825B841DD00FAA24A /* SocketConnection.m */,
 				DEC96579264176DF0052DB35 /* DataChannelWrapper.h */,
 				DEC96576264176C10052DB35 /* DataChannelWrapper.m */,
-				E998AE112959E44200895143 /* VideoSourceInterceptor.h */,
-				E998AE122959E44200895143 /* VideoSourceInterceptor.m */,
 			);
 			name = RCTWebRTC;
 			path = ../apple/RCTWebRTC;
@@ -224,6 +227,7 @@
 				TargetAttributes = {
 					35A2221E1CB493700015FD5C = {
 						CreatedOnToolsVersion = 7.2.1;
+						LastSwiftMigration = 1600;
 					};
 				};
 			};
@@ -287,10 +291,11 @@
 				4EE3A8D225B841DD00FAA24A /* CaptureController.m in Sources */,
 				D7F0711E2C6DC91F0031F594 /* WebRTCModule+RTCAudioSession.m in Sources */,
 				D74EF94829652169000742E1 /* TrackCapturerEventsEmitter.m in Sources */,
+				923CF7DC2D13030D0044715F /* WebRTCFilter.swift in Sources */,
+				923CF7DD2D13030D0044715F /* WebRTCVideoCaptureHandler.swift in Sources */,
 				4EE3A8D125B841DD00FAA24A /* SocketConnection.m in Sources */,
 				4EE3A8BD25B8416500FAA24A /* WebRTCModule+RTCMediaStream.m in Sources */,
 				4EE3A8D325B841DD00FAA24A /* ScreenCaptureController.m in Sources */,
-				E998AE132959E44200895143 /* VideoSourceInterceptor.m in Sources */,
 				4EE3A8AC25B8412700FAA24A /* RTCVideoViewManager.m in Sources */,
 				4EE3A8C125B8416F00FAA24A /* WebRTCModule+RTCPeerConnection.m in Sources */,
 				92EC774C2D0061F10066021F /* PortNameHelper.m in Sources */,
@@ -383,10 +388,15 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 1A7E646283326F2A95C8C1FA /* Pods-RCTWebRTC.debug.xcconfig */;
 			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LIBRARY_SEARCH_PATHS = "$(inherited)";
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "RTCWebRTC-Bridging-Header.h";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
 		};
@@ -394,10 +404,14 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 131131FC732883F1EF6F2CA3 /* Pods-RCTWebRTC.release.xcconfig */;
 			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LIBRARY_SEARCH_PATHS = "$(inherited)";
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "RTCWebRTC-Bridging-Header.h";
+				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
 		};
