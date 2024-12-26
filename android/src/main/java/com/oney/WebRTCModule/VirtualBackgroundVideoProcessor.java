@@ -67,7 +67,14 @@ public class VirtualBackgroundVideoProcessor implements VideoProcessor {
         if (enableVirtualBackgroud && !backgroundImageBase64.isEmpty()) {
             byte[] decodedString = Base64.decode(backgroundImageBase64, Base64.DEFAULT);
             backgroundImage = BitmapFactory.decodeByteArray(decodedString, 0, decodedString.length);
-            scaled = Bitmap.createScaledBitmap(backgroundImage, backgroundImage.getWidth(), backgroundImage.getHeight(), false);
+            int sourceWidth = backgroundImage.getWidth();
+            int sourceHeight = backgroundImage.getHeight();
+
+            if (sourceWidth > sourceHeight) {
+                scaled = Bitmap.createScaledBitmap(backgroundImage, sourceHeight, sourceWidth, false);
+            } else {
+                scaled = Bitmap.createScaledBitmap(backgroundImage, sourceWidth, sourceHeight, false);
+            }
         } else {
             scaled = null;
             backgroundImage = null;

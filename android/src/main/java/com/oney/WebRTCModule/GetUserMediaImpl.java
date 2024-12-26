@@ -367,13 +367,7 @@ class GetUserMediaImpl {
         return createVideoTrack(screenCaptureController, null, false, "");
     }
 
-    private VideoTrack createVideoTrack(AbstractVideoCaptureController videoCaptureController, Boolean enableVirtualBackgroud, Boolean enableBlurBackgroud, String backgroundImageBase64) {
-        ScreenCaptureController screenCaptureController = new ScreenCaptureController(
-                reactContext.getCurrentActivity(), width, height, mediaProjectionPermissionResultData);
-        return createVideoTrack(screenCaptureController);
-    }
-
-    VideoTrack createVideoTrack(AbstractVideoCaptureController videoCaptureController) {
+    VideoTrack createVideoTrack(AbstractVideoCaptureController videoCaptureController, Boolean enableVirtualBackgroud, Boolean enableBlurBackgroud, String backgroundImageBase64) {
         videoCaptureController.initializeVideoCapturer();
 
         VideoCapturer videoCapturer = videoCaptureController.videoCapturer;
@@ -403,11 +397,11 @@ class GetUserMediaImpl {
             videoSource.setVideoProcessor(p);
         }
 
-        String id = UUID.randomUUID().toString();
-        VideoTrack track = pcFactory.createVideoTrack(id, videoSource);
+        String videoTrackId = UUID.randomUUID().toString();
+        VideoTrack track = pcFactory.createVideoTrack(videoTrackId, videoSource);
 
         track.setEnabled(true);
-        tracks.put(id, new TrackPrivate(track, videoSource, videoCaptureController, surfaceTextureHelper));
+        tracks.put(videoTrackId, new TrackPrivate(track, videoSource, videoCaptureController, surfaceTextureHelper));
 
         videoCaptureController.startCapture();
 
@@ -481,7 +475,7 @@ class GetUserMediaImpl {
          *                               {@code track} is a {@link VideoTrack}
          */
         public TrackPrivate(MediaStreamTrack track, MediaSource mediaSource,
-                AbstractVideoCaptureController videoCaptureController, SurfaceTextureHelper surfaceTextureHelper) {
+                            AbstractVideoCaptureController videoCaptureController, SurfaceTextureHelper surfaceTextureHelper) {
             this.track = track;
             this.mediaSource = mediaSource;
             this.videoCaptureController = videoCaptureController;
