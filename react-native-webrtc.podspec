@@ -13,7 +13,7 @@ Pod::Spec.new do |s|
   s.requires_arc        = true
 
   s.platforms           = { :ios => '12.0', :osx => '10.13', :tvos => '16.0' }
-
+  s.ios.deployment_target = '15.0'
   s.preserve_paths      = 'ios/**/*'
   s.source_files        = 'ios/**/*.{h,m,swift}'
   s.libraries           = 'c', 'sqlite3', 'stdc++'
