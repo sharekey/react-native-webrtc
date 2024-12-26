@@ -6,6 +6,9 @@ export type MediaTrackConstraints = {
     facingMode?: ConstrainString;
     deviceId?: ConstrainString;
     groupId?: ConstrainString;
+    enableBlurBackgroud?: boolean;
+    backgroundImageBase64?: string | null;
+    enableVirtualBackgroud?: boolean;
 }
 
 type ConstrainNumber = number | {
