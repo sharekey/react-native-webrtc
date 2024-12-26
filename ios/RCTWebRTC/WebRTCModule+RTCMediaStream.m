@@ -126,7 +126,7 @@
     self.videoSourceInterceptor = [[WebRTCVideoCaptureHandler alloc] initWithSource:videoSource backgroundImageData:nil];
     videoCapturer = [[RTCCameraVideoCapturer alloc] initWithDelegate:self.videoSourceInterceptor];
   } else if (videoContraints[@"enableVirtualBackgroud"]) {
-    NSDictionary* imageData = constraints[@"backgroundImageBase64"];
+    NSDictionary* imageData = videoContraints[@"backgroundImageBase64"];
     NSData* dataEncoded = [[NSData alloc] initWithBase64EncodedString: imageData options: 0];
 
     self.videoSourceInterceptor = [[WebRTCVideoCaptureHandler alloc] initWithSource:videoSource backgroundImageData: dataEncoded];
