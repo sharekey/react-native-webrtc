@@ -279,6 +279,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				923CF7DC2D13030D0044715F /* WebRTCFilter.swift in Sources */,
+				923CF7DD2D13030D0044715F /* WebRTCVideoCaptureHandler.swift in Sources */,
 				4EE3A8C525B8417800FAA24A /* WebRTCModule+VideoTrackAdapter.m in Sources */,
 				4EE3A8BA25B8415900FAA24A /* WebRTCModule+RTCDataChannel.m in Sources */,
 				4EE3A8B625B8414A00FAA24A /* WebRTCModule+Permissions.m in Sources */,
@@ -291,8 +293,6 @@
 				4EE3A8D225B841DD00FAA24A /* CaptureController.m in Sources */,
 				D7F0711E2C6DC91F0031F594 /* WebRTCModule+RTCAudioSession.m in Sources */,
 				D74EF94829652169000742E1 /* TrackCapturerEventsEmitter.m in Sources */,
-				923CF7DC2D13030D0044715F /* WebRTCFilter.swift in Sources */,
-				923CF7DD2D13030D0044715F /* WebRTCVideoCaptureHandler.swift in Sources */,
 				4EE3A8D125B841DD00FAA24A /* SocketConnection.m in Sources */,
 				4EE3A8BD25B8416500FAA24A /* WebRTCModule+RTCMediaStream.m in Sources */,
 				4EE3A8D325B841DD00FAA24A /* ScreenCaptureController.m in Sources */,
