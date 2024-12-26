@@ -475,7 +475,7 @@ class GetUserMediaImpl {
          *                               {@code track} is a {@link VideoTrack}
          */
         public TrackPrivate(MediaStreamTrack track, MediaSource mediaSource,
-                            AbstractVideoCaptureController videoCaptureController, SurfaceTextureHelper surfaceTextureHelper) {
+                AbstractVideoCaptureController videoCaptureController, SurfaceTextureHelper surfaceTextureHelper) {
             this.track = track;
             this.mediaSource = mediaSource;
             this.videoCaptureController = videoCaptureController;
