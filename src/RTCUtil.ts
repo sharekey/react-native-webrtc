@@ -218,6 +218,7 @@ export function normalizeConstraints(constraints) {
                 c['video'].backgroundImageBase64 = constraints['video'].backgroundImageBase64;
             }
         }
+
     }
 
     return c;
