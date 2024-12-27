@@ -14,7 +14,7 @@ import Foundation
 import CoreImage.CIFilterBuiltins
 
 final public class WebRTCVideoCaptureHandler: NSObject, RTCVideoCapturerDelegate {
-  let selectedFilter: VideoFilter
+  var selectedFilter: VideoFilter?
 
   private lazy var serialActor = SerialActor()
 
@@ -37,14 +37,21 @@ final public class WebRTCVideoCaptureHandler: NSObject, RTCVideoCapturerDelegate
     self.colorSpace = CGColorSpaceCreateDeviceRGB()
     self.handleRotation = true
 
-    if let data = backgroundImageData, let backgroundImage: CIImage = CIImage(data: data) {
-      selectedFilter = .imageBackground(backgroundImage)
-    } else {
-      selectedFilter = .blurredBackground
-    }
-
     super.init()
   }
+
+
+  @objc
+  public func enable(blur: Bool, backgroundImageData: Data?) {
+    if let data = backgroundImageData, let backgroundImage: CIImage = CIImage(data: data) {
+      selectedFilter = .imageBackground(backgroundImage)
+    } else if blur {
+      selectedFilter = .blurredBackground
+    } else {
+      selectedFilter = nil
+    }
+  }
+
 
   public func capturer(_ capturer: RTCVideoCapturer, didCapture frame: RTCVideoFrame) {
     let currentTimestamp = frame.timeStampNs
@@ -128,13 +135,13 @@ final public class WebRTCVideoCaptureHandler: NSObject, RTCVideoCapturerDelegate
     image: CIImage,
     pixelBuffer: CVPixelBuffer
   ) async -> CIImage {
-    await selectedFilter.filter(
+    await selectedFilter?.filter(
       VideoFilter.Input(
         originalImage: image,
         originalPixelBuffer: pixelBuffer,
         originalImageOrientation: sceneOrientation.cgOrientation
       )
-    )
+    ) ?? CIImage()
   }
 }
 
