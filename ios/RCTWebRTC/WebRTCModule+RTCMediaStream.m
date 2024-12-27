@@ -13,6 +13,8 @@
 #import "ScreenCapturer.h"
 #import "TrackCapturerEventsEmitter.h"
 
+#import "react_native_webrtc-Swift.h"
+
 @implementation WebRTCModule (RTCMediaStream)
 
 #pragma mark - getUserMedia
