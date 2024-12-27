@@ -12,7 +12,6 @@
 #import "ScreenCaptureController.h"
 #import "ScreenCapturer.h"
 #import "TrackCapturerEventsEmitter.h"
-#import "VideoCaptureController.h"
 
 @implementation WebRTCModule (RTCMediaStream)
 
@@ -109,6 +108,7 @@
 #if TARGET_OS_TV
     return nil;
 #else
+
     RTCVideoSource *videoSource = [self.peerConnectionFactory videoSource];
 
   NSString *trackUUID = [[NSUUID UUID] UUIDString];
@@ -120,27 +120,13 @@
   RTCCameraVideoCapturer *videoCapturer;
 
   RCTLog(@"Video constraint in create video track: %@", videoContraints);
+  self.videoSourceInterceptor = [[WebRTCVideoCaptureHandler alloc] initWithSource:videoSource backgroundImageData:nil];
+  videoCapturer = [[RTCCameraVideoCapturer alloc] initWithDelegate:self.videoSourceInterceptor];
 
-  // If virtual backround is enabled, use video source interceptor before video source
-  if (videoContraints[@"enableBlurBackgroud"]) {
-    self.videoSourceInterceptor = [[WebRTCVideoCaptureHandler alloc] initWithSource:videoSource backgroundImageData:nil];
-    videoCapturer = [[RTCCameraVideoCapturer alloc] initWithDelegate:self.videoSourceInterceptor];
-  } else if (videoContraints[@"enableVirtualBackgroud"]) {
-    NSDictionary* imageData = constraints[@"backgroundImageBase64"];
-    NSData* dataEncoded = [[NSData alloc] initWithBase64EncodedString: imageData options: 0];
-
-    self.videoSourceInterceptor = [[WebRTCVideoCaptureHandler alloc] initWithSource:videoSource backgroundImageData: dataEncoded];
-    videoCapturer = [[RTCCameraVideoCapturer alloc] initWithDelegate:self.videoSourceInterceptor];
-  } else {
-    videoCapturer = [[RTCCameraVideoCapturer alloc] initWithDelegate:videoSource];
-  }
-
-
-  VideoCaptureController *videoCaptureController
-  = [[VideoCaptureController alloc] initWithCapturer:videoCapturer
+  self.videoCaptureController = [[VideoCaptureController alloc] initWithCapturer:videoCapturer
                                             andConstraints:videoContraints];
-  videoTrack.captureController = videoCaptureController;
-  [videoCaptureController startCapture];
+  videoTrack.captureController = self.videoCaptureController;
+  [self.videoCaptureController startCapture];
 #endif
 
     return videoTrack;
@@ -209,6 +195,25 @@ RCT_EXPORT_METHOD(getDisplayMedia : (RCTPromiseResolveBlock)resolve rejecter : (
  * if audio permission was not granted, there will be no "audio" key in
  * the constraints dictionary.
  */
+
+RCT_EXPORT_METHOD(changeBackgroundEffect
+                  : (NSDictionary *)constraints successCallback
+                  : (RCTResponseSenderBlock)successCallback errorCallback
+                  : (RCTResponseSenderBlock)errorCallback) {
+//   If virtual backround is enabled, use video source interceptor before video source
+  if (constraints[@"enableBlurBackgroud"]) {
+    [self.videoSourceInterceptor enableWithBlur:YES backgroundImageData:nil];
+  } else if (constraints[@"enableVirtualBackgroud"]) {
+    NSDictionary* imageData = constraints[@"backgroundImageBase64"];
+    NSData* dataEncoded = [[NSData alloc] initWithBase64EncodedString: imageData options: 0];
+    [self.videoSourceInterceptor enableWithBlur:NO backgroundImageData:dataEncoded];
+  } else {
+    [self.videoSourceInterceptor enableWithBlur:NO backgroundImageData:nil];
+  }
+
+  successCallback(@[]);
+}
+
 RCT_EXPORT_METHOD(getUserMedia
                   : (NSDictionary *)constraints successCallback
                   : (RCTResponseSenderBlock)successCallback errorCallback
@@ -223,8 +228,9 @@ RCT_EXPORT_METHOD(getUserMedia
     if (constraints[@"audio"]) {
         audioTrack = [self createAudioTrack:constraints];
     }
+
     if (constraints[@"video"]) {
-        videoTrack = [self createVideoTrack:constraints];
+      videoTrack = [self createVideoTrack:constraints];
     }
 
     if (audioTrack == nil && videoTrack == nil) {
