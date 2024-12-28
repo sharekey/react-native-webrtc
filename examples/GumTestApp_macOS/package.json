@@ -12,8 +12,8 @@
     "start:macos": "node node_modules/react-native-macos/local-cli/cli.js start --use-react-native-macos"
   },
   "dependencies": {
-    "react": "16.11.0",
-    "react-native": "0.62.0",
+    "react": "17.0.2",
+    "react-native": "0.67.4",
     "react-native-macos": "^0.62.16",
     "react-native-webrtc": "*"
   },
@@ -26,7 +26,7 @@
     "install-local": "^3.0.1",
     "jest": "24.9.0",
     "metro-react-native-babel-preset": "0.58.0",
-    "react-test-renderer": "16.11.0"
+    "react-test-renderer": "17.0.2"
   },
   "jest": {
     "preset": "react-native"

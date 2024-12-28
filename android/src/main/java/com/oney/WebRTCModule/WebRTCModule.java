@@ -443,7 +443,7 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
     }
 
     public VideoTrack createVideoTrack(AbstractVideoCaptureController videoCaptureController) {
-        return getUserMediaImpl.createVideoTrack(videoCaptureController);
+        return getUserMediaImpl.createVideoTrack(videoCaptureController, false, false, "");
     }
 
     public void createStream(

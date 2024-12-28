@@ -6,6 +6,7 @@
 #import <React/RCTEventEmitter.h>
 
 #import <WebRTC/WebRTC.h>
+#import "VideoCaptureController.h"
 
 static NSString *const kEventPeerConnectionSignalingStateChanged = @"peerConnectionSignalingStateChanged";
 static NSString *const kEventPeerConnectionStateChanged = @"peerConnectionStateChanged";
@@ -33,6 +34,8 @@ static NSString *const kEventPeerConnectionOnTrack = @"peerConnectionOnTrack";
 @property(nonatomic, strong) NSMutableDictionary<NSNumber *, RTCPeerConnection *> *peerConnections;
 @property(nonatomic, strong) NSMutableDictionary<NSString *, RTCMediaStream *> *localStreams;
 @property(nonatomic, strong) NSMutableDictionary<NSString *, RTCMediaStreamTrack *> *localTracks;
+@property (nonatomic, strong) id videoSourceInterceptor;
+@property (nonatomic, strong) VideoCaptureController *videoCaptureController;
 
 - (RTCMediaStream *)streamForReactTag:(NSString *)reactTag;
 

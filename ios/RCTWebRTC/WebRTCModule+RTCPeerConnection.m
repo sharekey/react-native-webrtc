@@ -665,8 +665,6 @@ RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(peerConnectionRemoveTrack
             NSString *jsonString = [[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding];
             [s appendString:jsonString];
         }
-    } else if ([statisticsValue isKindOfClass:[NSNumber class]]) {
-        [s appendString:[NSString stringWithFormat:@"%@", statisticsValue]];
     } else {
         [s appendString:@"\""];
         [s appendString:[NSString stringWithFormat:@"%@", statisticsValue]];
