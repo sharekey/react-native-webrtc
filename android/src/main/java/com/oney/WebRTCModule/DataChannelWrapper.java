@@ -76,8 +76,6 @@ class DataChannelWrapper implements DataChannel.Observer {
             String data = new String(bytes, StandardCharsets.UTF_8);
             params.putString("type", type);
             params.putString("data", data);
-            Log.i("test", "ReactNativeJS Message" + mDataChannel.id() + " " + data);
-
 
             webRTCModule.sendEvent("dataChannelReceiveMessage", params);
         });
