@@ -1,6 +1,8 @@
 import { EventTarget, Event, defineEventAttribute } from 'event-target-shim/index';
 import { NativeModules } from 'react-native';
 
+import type { BackgroundEffectConstraints } from './backgroundEffect';
+
 import getDisplayMedia from './getDisplayMedia';
 import getUserMedia, { Constraints } from './getUserMedia';
 import backgroundEffect from './backgroundEffect';
@@ -48,7 +50,7 @@ class MediaDevices extends EventTarget<MediaDevicesEventMap> {
      * @param {*} constraints
      * @returns {Promise}
      */
-    backgroundEffect(constraints: Constraints) {
+    backgroundEffect(constraints: BackgroundEffectConstraints) {
         return backgroundEffect(constraints);
     }
 }

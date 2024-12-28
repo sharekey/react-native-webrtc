@@ -212,6 +212,12 @@ export function normalizeConstraints(constraints) {
                 c['video'].enableBlurBackgroud = true;
             }
         }
+
+        if (constraints['video'].hasOwnProperty('backgroundImageBase64')) {
+            if (c['video']) {
+                c['video'].backgroundImageBase64 = constraints['video'].backgroundImageBase64;
+            }
+        }
     }
 
     return c;
