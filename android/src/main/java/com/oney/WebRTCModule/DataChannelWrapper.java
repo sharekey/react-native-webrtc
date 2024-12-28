@@ -59,24 +59,28 @@ class DataChannelWrapper implements DataChannel.Observer {
 
     @Override
     public void onMessage(DataChannel.Buffer buffer) {
-        WritableMap params = Arguments.createMap();
-        params.putString("reactTag", reactTag);
-        params.putInt("peerConnectionId", peerConnectionId);
+        ThreadUtils.runOnExecutor(() -> {
+            WritableMap params = Arguments.createMap();
+            params.putString("reactTag", reactTag);
+            params.putInt("peerConnectionId", peerConnectionId);
 
-        byte[] bytes;
-        if (buffer.data.hasArray()) {
-            bytes = buffer.data.array();
-        } else {
-            bytes = new byte[buffer.data.remaining()];
-            buffer.data.get(bytes);
-        }
+            byte[] bytes;
+            if (buffer.data.hasArray()) {
+                bytes = buffer.data.array();
+            } else {
+                bytes = new byte[buffer.data.remaining()];
+                buffer.data.get(bytes);
+            }
 
-        String type = "text";
-        String data = new String(bytes, StandardCharsets.UTF_8);
-        params.putString("type", type);
-        params.putString("data", data);
+            String type = "text";
+            String data = new String(bytes, StandardCharsets.UTF_8);
+            params.putString("type", type);
+            params.putString("data", data);
+            Log.i("test", "ReactNativeJS Message" + mDataChannel.id() + " " + data);
 
-        webRTCModule.sendEvent("dataChannelReceiveMessage", params);
+
+            webRTCModule.sendEvent("dataChannelReceiveMessage", params);
+        });
     }
 
     @Override
