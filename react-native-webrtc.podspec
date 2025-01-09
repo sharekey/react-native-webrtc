@@ -17,7 +17,7 @@ Pod::Spec.new do |s|
   s.preserve_paths      = 'ios/**/*'
   s.source_files        = 'ios/**/*.{swift,h,m}'
   s.libraries           = 'c', 'sqlite3', 'stdc++'
-  s.framework           = 'AudioToolbox','AVFoundation', 'CoreGraphics', 'CoreVideo', 'GLKit', 'VideoToolbox'
+  s.framework           = 'AudioToolbox','AVFoundation', 'CoreAudio', 'CoreGraphics', 'CoreVideo', 'GLKit', 'VideoToolbox'
   s.dependency          'React-Core'
   s.dependency          'WebRTC-lib'
 end
