@@ -13,6 +13,101 @@ import CoreImage
 import Foundation
 import CoreImage.CIFilterBuiltins
 
+final public class WebRTCVoiceHandler: NSObject {
+  private var outgoingVoicePublisher: CurrentValueSubject<(RTCPeerConnection?, Bool, Double), Never> = .init((nil, false, 0))
+  private var incomingVoicePublisher: CurrentValueSubject<(RTCPeerConnection?, Bool, Double), Never> = .init((nil, false, 0))
+
+  private var observeTask: Task<Void, Never>?
+  private var disposeBag: Set<AnyCancellable> = []
+
+  @objc
+  public func startObserve(peerConnections: [RTCPeerConnection],
+                           voiceClosure: @escaping (RTCPeerConnection, Bool, Bool, Double) -> Void) -> Self {
+    let _ = stopObserve()
+
+    observeTask = Task {
+      await observeVoiceActivity(peerConnections: peerConnections)
+    }
+
+    outgoingVoicePublisher.removeDuplicates(by: { $0.1 == $1.1 }).sink { (peer, isSpeak, audioLevel) in
+      guard let peer else { return }
+      voiceClosure(peer, true, isSpeak, audioLevel)
+    }.store(in: &disposeBag)
+
+    incomingVoicePublisher.removeDuplicates(by: { $0.1 == $1.1 }).sink { (peer, isSpeak, audioLevel) in
+      guard let peer else { return }
+      voiceClosure(peer, false, isSpeak, audioLevel)
+    }.store(in: &disposeBag)
+
+    return self
+  }
+
+  @objc
+  public func stopObserve() -> Self {
+    observeTask?.cancel()
+    disposeBag.forEach { $0.cancel() }
+
+    return self
+  }
+
+  private func observeVoiceActivity(peerConnections: [RTCPeerConnection]) async {
+    let checkInterval: Double = 0.1
+    let silenceThreshold: Double = 0.3
+
+    var silenceIncomingCount: Double = 0
+    var silenceOutgoingCount: Double = 0
+
+    while !Task.isCancelled {
+      do {
+        peerConnections.forEach { [weak self] peerConnection in
+          guard let self = self else { return }
+
+          if peerConnection.connectionState == .connected {
+            peerConnection.statistics { reports in
+              for statistic in reports.statistics.values {
+                if statistic.type == "inbound-rtp" {
+                  guard let audioLevel = statistic.values["audioLevel"] as? Double else { return }
+
+                  if audioLevel > 0.1 {
+                    self.incomingVoicePublisher.send((peerConnection, true, audioLevel))
+                  } else {
+                    silenceIncomingCount += 1
+
+                    if silenceIncomingCount > silenceThreshold / checkInterval {
+                      self.incomingVoicePublisher.send((peerConnection, false, audioLevel))
+                    }
+                  }
+                }
+
+                if statistic.type == "media-source" {
+                  guard let audioLevel = statistic.values["audioLevel"] as? Double else { return }
+
+                  if audioLevel > 0.1 {
+                    self.outgoingVoicePublisher.send((peerConnection, true, audioLevel))
+                  } else {
+                    silenceOutgoingCount += 1
+
+                    if silenceOutgoingCount > silenceThreshold / checkInterval {
+                      self.outgoingVoicePublisher.send((peerConnection, false, audioLevel))
+                    }
+                  }
+                }
+              }
+            }
+          } else {
+            self.incomingVoicePublisher.send((peerConnection, false, 0))
+            self.outgoingVoicePublisher.send((peerConnection, false, 0))
+          }
+        }
+
+        try await Task.sleep(nanoseconds: UInt64(checkInterval * 1000000000))
+      } catch {
+        print(error)
+      }
+    }
+  }
+}
+
 final public class WebRTCVideoCaptureHandler: NSObject, RTCVideoCapturerDelegate {
   var selectedFilter: VideoFilter?
 

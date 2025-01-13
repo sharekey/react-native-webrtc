@@ -58,6 +58,10 @@ class PeerConnectionObserver implements PeerConnection.Observer {
         return peerConnection;
     }
 
+    int getId() {
+        return id;
+    }
+
     void setPeerConnection(PeerConnection peerConnection) {
         this.peerConnection = peerConnection;
     }
