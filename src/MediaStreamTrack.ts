@@ -14,7 +14,7 @@ type MediaStreamTrackState = 'live' | 'ended';
 
 export type MediaStreamTrackInfo = {
     id: string;
-    kind: string;
+    kind: 'audio' | 'video';
     remote: boolean;
     constraints: object;
     enabled: boolean;
@@ -47,7 +47,7 @@ export default class MediaStreamTrack extends EventTarget<MediaStreamTrackEventM
     _readyState: MediaStreamTrackState;
 
     readonly id: string;
-    readonly kind: string;
+    readonly kind: MediaStreamTrackInfo['kind'];
     readonly label: string = '';
     readonly remote: boolean;
 
