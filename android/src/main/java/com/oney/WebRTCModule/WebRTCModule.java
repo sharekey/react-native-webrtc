@@ -1,5 +1,8 @@
 package com.oney.WebRTCModule;
 
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkRequest;
 import android.util.Log;
 import android.util.Pair;
 import android.util.SparseArray;
@@ -11,6 +14,7 @@ import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.Callback;
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
+import com.facebook.react.bridge.ReactContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.ReadableArray;
@@ -111,8 +115,27 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
         mAudioDeviceModule = adm;
 
         getUserMediaImpl = new GetUserMediaImpl(this, reactContext);
+
+        observeReconnection(reactContext);
     }
 
+    private void observeReconnection(ReactContext reactContext) {
+        ConnectivityManager connectivityManager =
+                (ConnectivityManager) reactContext.getSystemService(reactContext.CONNECTIVITY_SERVICE);
+        NetworkRequest networkRequest = new NetworkRequest.Builder().build();
+
+        connectivityManager.registerNetworkCallback(networkRequest, new ConnectivityManager.NetworkCallback() {
+            @Override
+            public void onAvailable(Network network) {
+                super.onAvailable(network);
+                for (int i = 0, size = mPeerConnectionObservers.size(); i < size; i++) {
+                    PeerConnectionObserver pco = mPeerConnectionObservers.valueAt(i);
+                    pco.getPeerConnection().restartIce();
+                }
+            }
+        });
+    }
+    
     @NonNull
     @Override
     public String getName() {
@@ -182,7 +205,8 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
 
         PeerConnection.RTCConfiguration conf = new PeerConnection.RTCConfiguration(iceServers);
         conf.sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN;
-
+        conf.continualGatheringPolicy = PeerConnection.ContinualGatheringPolicy.GATHER_CONTINUALLY;
+        conf.candidateNetworkPolicy = PeerConnection.CandidateNetworkPolicy.ALL;
         // Required for perfect negotiation.
         conf.enableImplicitRollback = true;
 
