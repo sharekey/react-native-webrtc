@@ -111,10 +111,10 @@
     return nil;
 #else
 
-    RTCVideoSource *videoSource = [self.peerConnectionFactory videoSource];
+    self.videoSource = [self.peerConnectionFactory videoSource];
 
   NSString *trackUUID = [[NSUUID UUID] UUIDString];
-  RTCVideoTrack *videoTrack = [self.peerConnectionFactory videoTrackWithSource:videoSource trackId:trackUUID];
+  RTCVideoTrack *videoTrack = [self.peerConnectionFactory videoTrackWithSource:self.videoSource trackId:trackUUID];
 
 #if !TARGET_IPHONE_SIMULATOR
   NSDictionary *videoContraints = constraints[@"video"];
@@ -122,7 +122,7 @@
   RTCCameraVideoCapturer *videoCapturer;
 
   RCTLog(@"Video constraint in create video track: %@", videoContraints);
-  self.videoSourceInterceptor = [[WebRTCVideoCaptureHandler alloc] initWithSource:videoSource backgroundImageData:nil];
+  self.videoSourceInterceptor = [[WebRTCVideoCaptureHandler alloc] initWithSource:self.videoSource backgroundImageData:nil];
   videoCapturer = [[RTCCameraVideoCapturer alloc] initWithDelegate:self.videoSourceInterceptor];
 
   self.videoCaptureController = [[VideoCaptureController alloc] initWithCapturer:videoCapturer
@@ -203,6 +203,12 @@ RCT_EXPORT_METHOD(changeBackgroundEffect
                   : (RCTResponseSenderBlock)successCallback errorCallback
                   : (RCTResponseSenderBlock)errorCallback) {
 //   If virtual backround is enabled, use video source interceptor before video source
+  int width = [constraints[@"width"] intValue];
+  int height = [constraints[@"height"] intValue];
+  int frameRate = [constraints[@"frameRate"] intValue];
+
+  [self.videoSource adaptOutputFormatToWidth:width height:height fps:frameRate];
+
   if (constraints[@"enableBlurBackgroud"]) {
     [self.videoSourceInterceptor enableWithBlur:YES backgroundImageData:nil];
   } else if (constraints[@"enableVirtualBackgroud"]) {
