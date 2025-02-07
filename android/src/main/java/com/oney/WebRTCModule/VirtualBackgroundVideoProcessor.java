@@ -17,6 +17,8 @@ import android.renderscript.Element;
 import android.renderscript.RenderScript;
 import android.renderscript.ScriptIntrinsicBlur;
 import android.util.Base64;
+import android.util.Log;
+import android.view.Surface;
 
 import androidx.annotation.Nullable;
 
@@ -169,7 +171,18 @@ public class VirtualBackgroundVideoProcessor implements VideoProcessor {
                                                     GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
 
                                                     VideoFrame.I420Buffer i420Buf = yuvConverter.convert(buffer);
-                                                    VideoFrame out = new VideoFrame(i420Buf, 180, videoFrame.getTimestampNs());
+
+                                                    int orientationDegrees;
+                                                    switch (videoFrame.getRotation()) {
+                                                        case 90:
+                                                            orientationDegrees = 0;
+                                                            break;
+                                                        default:
+                                                            orientationDegrees = 180;
+                                                            break;
+                                                    }
+
+                                                    VideoFrame out = new VideoFrame(i420Buf, orientationDegrees, videoFrame.getTimestampNs());
 
                                                     buffer.release();
                                                     yuvFrame.dispose();
