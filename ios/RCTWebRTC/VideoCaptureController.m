@@ -4,8 +4,14 @@
 
 #import <React/RCTLog.h>
 
+#import "ScreenCaptureController.h"
+#import "ScreenCapturer.h"
+#import "TrackCapturerEventsEmitter.h"
+
+
 @interface VideoCaptureController ()
 
+@property (nonatomic, strong) RTCVideoSource *source;
 @property (nonatomic, strong) RTCCameraVideoCapturer *capturer;
 @property (nonatomic, strong) AVCaptureDeviceFormat *selectedFormat;
 @property (nonatomic, strong) AVCaptureDevice *device;
@@ -22,9 +28,10 @@
 
 @implementation VideoCaptureController
 
-- (instancetype)initWithCapturer:(RTCCameraVideoCapturer *)capturer andConstraints:(NSDictionary *)constraints {
+- (instancetype)initWithCapturer:(RTCCameraVideoCapturer *)capturer videoSource: (RTCVideoSource*) source andConstraints:(NSDictionary *)constraints {
   self = [super init];
   if (self) {
+    self.source = source;
     self.capturer = capturer;
     self.running = NO;
 
@@ -33,9 +40,46 @@
     }
 
     [self applyConstraints:constraints error:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(orientationChanged)
+                                                 name:UIDeviceOrientationDidChangeNotification
+                                               object:nil];
   }
 
   return self;
+}
+
+- (void)orientationChanged {
+  AVCaptureConnection *connection = self.capturer.captureSession.connections.firstObject;
+  if (!connection) return;
+
+  UIDeviceOrientation deviceOrientation = [[UIDevice currentDevice] orientation];
+  AVCaptureVideoOrientation videoOrientation = [self getVideoOrientationFromDeviceOrientation:deviceOrientation];
+
+  if (connection.videoOrientation != videoOrientation) {
+    connection.videoOrientation = videoOrientation;
+  }
+
+  CGSize resolution = CGSizeMake(self.height, self.width);
+  int width = (videoOrientation == AVCaptureVideoOrientationPortrait || videoOrientation == AVCaptureVideoOrientationPortraitUpsideDown) ? resolution.height : resolution.width;
+  int height = (videoOrientation == AVCaptureVideoOrientationPortrait || videoOrientation == AVCaptureVideoOrientationPortraitUpsideDown) ? resolution.width : resolution.height;
+
+  [self.source adaptOutputFormatToWidth:width height:height fps: self.frameRate];
+}
+
+- (AVCaptureVideoOrientation)getVideoOrientationFromDeviceOrientation:(UIDeviceOrientation)deviceOrientation {
+  switch (deviceOrientation) {
+    case UIDeviceOrientationPortrait:
+      return AVCaptureVideoOrientationLandscapeLeft;
+    case UIDeviceOrientationLandscapeLeft:
+      return AVCaptureVideoOrientationPortrait;
+    case UIDeviceOrientationLandscapeRight:
+      return AVCaptureVideoOrientationPortraitUpsideDown;
+    case UIDeviceOrientationPortraitUpsideDown:
+      return AVCaptureVideoOrientationLandscapeLeft;
+    default:
+      return AVCaptureVideoOrientationPortrait;
+  }
 }
 
 - (void)dealloc {
