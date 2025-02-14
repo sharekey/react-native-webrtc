@@ -84,6 +84,7 @@
 
 - (void)dealloc {
   self.device = NULL;
+  [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
 - (void)startCapture {
