@@ -126,11 +126,44 @@ typedef NS_ENUM(NSInteger, RTCVideoViewObjectFit) {
 #else
         RTCMTLVideoView *subview = [[RTCMTLVideoView alloc] initWithFrame:CGRectZero];
         _videoView = subview;
+
 #endif
         [self addSubview:self.videoView];
     }
 
-    return self;
+  [[NSNotificationCenter defaultCenter] addObserver:self
+                                           selector:@selector(orientationChanged)
+                                               name:UIDeviceOrientationDidChangeNotification
+                                             object:nil];
+  return self;
+}
+
+-(void)dealloc {
+  [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)orientationChanged {
+  UIDeviceOrientation deviceOrientation = [[UIDevice currentDevice] orientation];
+  [self makeVideoMirroring:deviceOrientation];
+}
+
+- (void)makeVideoMirroring:(UIDeviceOrientation)deviceOrientation {
+    switch (deviceOrientation) {
+      case UIDeviceOrientationPortrait:
+        self.videoView.transform = CGAffineTransformMakeScale(-1, 1);
+        break;
+      case UIDeviceOrientationLandscapeLeft:
+        self.videoView.transform = CGAffineTransformIdentity;
+        break;
+      case UIDeviceOrientationLandscapeRight:
+        self.videoView.transform = CGAffineTransformIdentity;
+        break;
+      case UIDeviceOrientationPortraitUpsideDown:
+        self.videoView.transform = CGAffineTransformMakeScale(-1, 1);
+        break;
+      default:
+        return;
+    }
 }
 
 #if TARGET_OS_OSX

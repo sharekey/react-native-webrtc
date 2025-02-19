@@ -35,11 +35,43 @@ final public class WebRTCVideoCaptureHandler: NSObject, RTCVideoCapturerDelegate
     self.source = source
     self.context = CIContext(options: [CIContextOption.useSoftwareRenderer: false])
     self.colorSpace = CGColorSpaceCreateDeviceRGB()
-    self.handleRotation = true
+    self.handleRotation = false
 
     super.init()
+
+    NotificationCenter.default.addObserver(self,
+                                           selector: #selector(orientationChanged),
+                                           name: UIDevice.orientationDidChangeNotification, object: nil)
   }
 
+  deinit {
+    NotificationCenter.default.removeObserver(self)
+  }
+
+  @objc func orientationChanged() {
+    self.sceneOrientation = {
+    #if canImport(UIKit)
+        if let window = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+          switch window.interfaceOrientation {
+          case .unknown, .portrait:
+            return .portrait(isUpsideDown: false)
+          case .portraitUpsideDown:
+            return .portrait(isUpsideDown: true)
+          case .landscapeLeft:
+            return .landscape(isLeft: true)
+          case .landscapeRight:
+            return .landscape(isLeft: false)
+          @unknown default:
+            return .portrait(isUpsideDown: false)
+          }
+        } else {
+          return .portrait(isUpsideDown: false)
+        }
+    #else
+        return .portrait(isUpsideDown: false)
+    #endif
+    }()
+  }
 
   @objc
   public func enable(blur: Bool, backgroundImageData: Data?) {
