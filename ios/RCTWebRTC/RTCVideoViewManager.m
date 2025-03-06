@@ -150,7 +150,9 @@ typedef NS_ENUM(NSInteger, RTCVideoViewObjectFit) {
 - (void)makeVideoMirroring:(UIDeviceOrientation)deviceOrientation {
     switch (deviceOrientation) {
       case UIDeviceOrientationPortrait:
-        self.videoView.transform = CGAffineTransformMakeScale(-1, 1);
+        if (_mirror) {
+          self.videoView.transform = CGAffineTransformMakeScale(-1, 1);
+        }
         break;
       case UIDeviceOrientationLandscapeLeft:
         self.videoView.transform = CGAffineTransformIdentity;
@@ -159,7 +161,9 @@ typedef NS_ENUM(NSInteger, RTCVideoViewObjectFit) {
         self.videoView.transform = CGAffineTransformIdentity;
         break;
       case UIDeviceOrientationPortraitUpsideDown:
-        self.videoView.transform = CGAffineTransformMakeScale(-1, 1);
+        if (_mirror) {
+          self.videoView.transform = CGAffineTransformMakeScale(-1, 1);
+        }
         break;
       default:
         return;
