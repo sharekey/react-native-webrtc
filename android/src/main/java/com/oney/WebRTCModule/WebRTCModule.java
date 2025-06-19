@@ -39,12 +39,12 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 
 interface OnValueChangeListener {
-    void onValueChanged(PeerConnectionObserver peerConnection, boolean isSpeak, double audioLevel);
+    void onValueChanged(PeerConnectionObserver peerConnection, boolean isSpeaking, double audioLevel);
 }
 
 class AudioLevelValueHolder {
     private double audioLevel;
-    private boolean isSpeak;
+    private boolean isSpeaking;
     private PeerConnectionObserver peerConnection;
     private OnValueChangeListener listener;
 
@@ -52,14 +52,14 @@ class AudioLevelValueHolder {
         this.listener = listener;
     }
 
-    void setValue(PeerConnectionObserver peerConnection, boolean isSpeak, double audioLevel) {
-        if (this.isSpeak != isSpeak) {
-            this.isSpeak = isSpeak;
+    void setValue(PeerConnectionObserver peerConnection, boolean isSpeaking, double audioLevel) {
+        if (this.isSpeaking != isSpeaking) {
+            this.isSpeaking = isSpeaking;
             this.audioLevel = audioLevel;
             this.peerConnection = peerConnection;
 
             if (listener != null) {
-                listener.onValueChanged(peerConnection, isSpeak, audioLevel);
+                listener.onValueChanged(peerConnection, isSpeaking, audioLevel);
             }
         }
     }
@@ -97,11 +97,11 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
 
         incomingAudioLevelHolder.setOnValueChangeListener(new OnValueChangeListener() {
             @Override
-            public void onValueChanged(PeerConnectionObserver peerConnection, boolean isSpeak, double audioLevel) {
+            public void onValueChanged(PeerConnectionObserver peerConnection, boolean isSpeaking, double audioLevel) {
                 ThreadUtils.runOnExecutor(() -> {
                     WritableMap params = Arguments.createMap();
                     WritableMap childParams = Arguments.createMap();
-                    childParams.putBoolean("isSpeak", isSpeak);
+                    childParams.putBoolean("isSpeaking", isSpeaking);
                     childParams.putDouble("audioLevel", audioLevel);
 
                     params.putInt("pcId", peerConnection.getId());
@@ -113,10 +113,10 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
 
         outgoingAudioLevelHolder.setOnValueChangeListener(new OnValueChangeListener() {
             @Override
-            public void onValueChanged(PeerConnectionObserver peerConnection, boolean isSpeak, double audioLevel) {
+            public void onValueChanged(PeerConnectionObserver peerConnection, boolean isSpeaking, double audioLevel) {
                 WritableMap params = Arguments.createMap();
                 WritableMap childParams = Arguments.createMap();
-                childParams.putBoolean("isSpeak", isSpeak);
+                childParams.putBoolean("isSpeaking", isSpeaking);
                 childParams.putDouble("audioLevel", audioLevel);
 
                 params.putInt("pcId", peerConnection.getId());

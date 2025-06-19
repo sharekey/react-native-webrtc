@@ -46,8 +46,8 @@ type RTCDataChannelInit = {
 };
 
 type RTCVoice = {
-    incoming: { isSpeak: boolean, audioLevel: number },
-    outgoing: { isSpeak: boolean, audioLevel: number }
+    incoming: { isSpeaking: boolean, audioLevel: number },
+    outgoing: { isSpeaking: boolean, audioLevel: number }
 };
 
 type RTCIceServer = {
@@ -89,7 +89,7 @@ export default class RTCPeerConnection extends EventTarget<RTCPeerConnectionEven
     connectionState: RTCPeerConnectionState = 'new';
     iceConnectionState: RTCIceConnectionState = 'new';
 
-    voiceState: RTCVoice = { incoming: { isSpeak: false, audioLevel: 0 }, outgoing: { isSpeak: false, audioLevel: 0 } };
+    voiceState: RTCVoice = { incoming: { isSpeaking: false, audioLevel: 0 }, outgoing: { isSpeaking: false, audioLevel: 0 } };
 
     _pcId: number;
     _transceivers: { order: number, transceiver: RTCRtpTransceiver }[];

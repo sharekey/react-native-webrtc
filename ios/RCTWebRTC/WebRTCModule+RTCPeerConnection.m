@@ -117,7 +117,7 @@ RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(peerConnectionInit
 
   self.voiceHandler = [[WebRTCVoiceHandler new]
                        startObserveWithPeerConnections:self.peerConnections.allValues
-                       voiceClosure:^(RTCPeerConnection* peerConnection, BOOL outgoing, BOOL isSpeak, double audioLevel) {
+                       voiceClosure:^(RTCPeerConnection* peerConnection, BOOL outgoing, BOOL isSpeaking, double audioLevel) {
 
     dispatch_async(self.workerQueue, ^{
       [self sendEventWithName:kEventPeerVoiceStateChanged
@@ -125,12 +125,12 @@ RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(peerConnectionInit
        outgoing
        ?
        @{@"outgoing": @{
-         @"isSpeak" : @(isSpeak),
+         @"isSpeaking" : @(isSpeaking),
          @"audioLevel" : @(audioLevel)
        }, @"pcId" : peerConnection.reactTag}
        :
        @{@"incoming": @{
-         @"isSpeak" : @(isSpeak),
+         @"isSpeaking" : @(isSpeaking),
          @"audioLevel" : @(audioLevel)
        }, @"pcId" : peerConnection.reactTag}
       ];
