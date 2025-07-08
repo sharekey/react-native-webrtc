@@ -78,7 +78,7 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
     private final SparseArray<PeerConnectionObserver> mPeerConnectionObservers;
     final Map<String, MediaStream> localStreams;
 
-    Timer voiceTimer = new Timer();
+    Timer voiceTimer;
     boolean isVoiceTimerRunning = false;
 
     AudioLevelValueHolder incomingAudioLevelHolder;
@@ -444,6 +444,7 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
     public boolean peerConnectionInit(ReadableMap configuration, int id) {
         PeerConnection.RTCConfiguration rtcConfiguration = parseRTCConfiguration(configuration);
 
+        observeVoiceActivity();
         try {
             return (boolean) ThreadUtils
                     .submitToExecutor(() -> {
@@ -454,7 +455,6 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
                         }
                         observer.setPeerConnection(peerConnection);
                         mPeerConnectionObservers.put(id, observer);
-                        observeVoiceActivity();
 
                         return true;
                     })
@@ -465,17 +465,6 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
         }
     }
 
-    void stopObserveVoiceActivity() {
-        if (isVoiceTimerRunning) {
-            try {
-                voiceTimer.cancel();
-            } catch (RuntimeException e) {
-                Log.i("RuntimeException", e.getLocalizedMessage());
-            }
-
-            isVoiceTimerRunning = false;
-        }
-    }
     void observeVoiceActivity() {
         double checkInterval = 0.1;
         double silenceThreshold = 0.3;
@@ -483,12 +472,7 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
         final double[] silenceIncomingCount = {0};
         final double[] silenceOutgoingCount = {0};
 
-        stopObserveVoiceActivity();
-
-        if (mPeerConnectionObservers.size() == 0) {
-            return;
-        }
-
+        voiceTimer = new Timer();
         voiceTimer.schedule(new TimerTask() {
             @Override
             public void run() {
@@ -1529,6 +1513,10 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void dataChannelClose(int peerConnectionId, String reactTag) {
+        if (isVoiceTimerRunning) {
+            voiceTimer.cancel();
+        }
+
         ThreadUtils.runOnExecutor(() -> {
             // Forward to PeerConnectionObserver which deals with DataChannels
             // because DataChannel is owned by PeerConnection.
@@ -1544,6 +1532,10 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void dataChannelDispose(int peerConnectionId, String reactTag) {
+        if (isVoiceTimerRunning) {
+            voiceTimer.cancel();
+        }
+
         ThreadUtils.runOnExecutor(() -> {
             PeerConnectionObserver pco = mPeerConnectionObservers.get(peerConnectionId);
             if (pco == null || pco.getPeerConnection() == null) {
