@@ -9,6 +9,7 @@ const { WebRTCModule } = NativeModules;
 const nativeEmitter = new NativeEventEmitter(WebRTCModule);
 
 const NATIVE_EVENTS = [
+    'peerVoiceStateChanged',
     'peerConnectionSignalingStateChanged',
     'peerConnectionStateChanged',
     'peerConnectionOnRenegotiationNeeded',

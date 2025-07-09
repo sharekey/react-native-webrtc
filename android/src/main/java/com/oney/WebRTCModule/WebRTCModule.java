@@ -37,8 +37,37 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
+
+interface OnValueChangeListener {
+    void onValueChanged(PeerConnectionObserver peerConnection, boolean isSpeaking, double audioLevel);
+}
+
+class AudioLevelValueHolder {
+    private double audioLevel;
+    private boolean isSpeaking;
+    private PeerConnectionObserver peerConnection;
+    private OnValueChangeListener listener;
+
+    void setOnValueChangeListener(OnValueChangeListener listener) {
+        this.listener = listener;
+    }
+
+    void setValue(PeerConnectionObserver peerConnection, boolean isSpeaking, double audioLevel) {
+        if (this.isSpeaking != isSpeaking) {
+            this.isSpeaking = isSpeaking;
+            this.audioLevel = audioLevel;
+            this.peerConnection = peerConnection;
+
+            if (listener != null) {
+                listener.onValueChanged(peerConnection, isSpeaking, audioLevel);
+            }
+        }
+    }
+}
 
 @ReactModule(name = "WebRTCModule")
 public class WebRTCModule extends ReactContextBaseJavaModule {
@@ -53,6 +82,12 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
     private final SparseArray<PeerConnectionObserver> mPeerConnectionObservers;
     final Map<String, MediaStream> localStreams;
 
+    Timer voiceTimer;
+    boolean isVoiceTimerRunning = false;
+
+    AudioLevelValueHolder incomingAudioLevelHolder;
+    AudioLevelValueHolder outgoingAudioLevelHolder;
+
     private final GetUserMediaImpl getUserMediaImpl;
 
     public WebRTCModule(ReactApplicationContext reactContext) {
@@ -60,6 +95,39 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
 
         mPeerConnectionObservers = new SparseArray<>();
         localStreams = new HashMap<>();
+
+        incomingAudioLevelHolder = new AudioLevelValueHolder();
+        outgoingAudioLevelHolder = new AudioLevelValueHolder();
+
+        incomingAudioLevelHolder.setOnValueChangeListener(new OnValueChangeListener() {
+            @Override
+            public void onValueChanged(PeerConnectionObserver peerConnection, boolean isSpeaking, double audioLevel) {
+                ThreadUtils.runOnExecutor(() -> {
+                    WritableMap params = Arguments.createMap();
+                    WritableMap childParams = Arguments.createMap();
+                    childParams.putBoolean("isSpeaking", isSpeaking);
+                    childParams.putDouble("audioLevel", audioLevel);
+
+                    params.putInt("pcId", peerConnection.getId());
+                    params.putMap("incoming", childParams);
+                    sendEvent("peerVoiceStateChanged", params);
+                });
+            }
+        });
+
+        outgoingAudioLevelHolder.setOnValueChangeListener(new OnValueChangeListener() {
+            @Override
+            public void onValueChanged(PeerConnectionObserver peerConnection, boolean isSpeaking, double audioLevel) {
+                WritableMap params = Arguments.createMap();
+                WritableMap childParams = Arguments.createMap();
+                childParams.putBoolean("isSpeaking", isSpeaking);
+                childParams.putDouble("audioLevel", audioLevel);
+
+                params.putInt("pcId", peerConnection.getId());
+                params.putMap("outgoing", childParams);
+                sendEvent("peerVoiceStateChanged", params);
+            }
+        });
 
         WebRTCModuleOptions options = WebRTCModuleOptions.getInstance();
 
@@ -400,6 +468,7 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
     public boolean peerConnectionInit(ReadableMap configuration, int id) {
         PeerConnection.RTCConfiguration rtcConfiguration = parseRTCConfiguration(configuration);
 
+        observeVoiceActivity();
         try {
             return (boolean) ThreadUtils
                     .submitToExecutor(() -> {
@@ -410,6 +479,7 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
                         }
                         observer.setPeerConnection(peerConnection);
                         mPeerConnectionObservers.put(id, observer);
+
                         return true;
                     })
                     .get();
@@ -417,6 +487,78 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
             e.printStackTrace();
             throw new RuntimeException(e);
         }
+    }
+
+    void observeVoiceActivity() {
+        double checkInterval = 0.3;
+        double silenceThreshold = 0.3;
+
+        final double[] silenceIncomingCount = {0};
+        final double[] silenceOutgoingCount = {0};
+
+        voiceTimer = new Timer();
+        voiceTimer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                for (int i = 0; i < mPeerConnectionObservers.size(); i++) {
+                    int key = mPeerConnectionObservers.keyAt(i);
+                    PeerConnectionObserver peer = mPeerConnectionObservers.get(key);
+
+                    if (peer.getPeerConnection().connectionState() == PeerConnection.PeerConnectionState.CONNECTED) {
+                        peer.getPeerConnection().getStats(new RTCStatsCollectorCallback() {
+                            @Override
+                            public void onStatsDelivered(RTCStatsReport rtcStatsReport) {
+
+                                for (RTCStats stats : rtcStatsReport.getStatsMap().values()) {
+                                    if (stats.getType().equals("inbound-rtp")) {
+                                        Object audioLevelObject = stats.getMembers().get("audioLevel");
+
+                                        if (audioLevelObject instanceof Double) {
+                                            Double audioLevel = ((Double) audioLevelObject);
+
+                                            if (audioLevel > 0.1) {
+                                                silenceIncomingCount[0] = 0;
+                                                incomingAudioLevelHolder.setValue(peer, true, audioLevel.doubleValue());
+                                            } else {
+                                                silenceIncomingCount[0] += 1;
+
+                                                if (silenceIncomingCount[0] > 5.0) {
+                                                    incomingAudioLevelHolder.setValue(peer, false, 0);
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    if (stats.getType().equals("media-source")) {
+                                        Object audioLevelObject = stats.getMembers().get("audioLevel");
+
+                                        if (audioLevelObject instanceof Double) {
+                                            Double audioLevel = ((Double) audioLevelObject);
+
+                                            if (audioLevel > 0.1) {
+                                                silenceOutgoingCount[0] = 0;
+                                                outgoingAudioLevelHolder.setValue(peer, true, audioLevel.doubleValue());
+                                            } else {
+                                                silenceOutgoingCount[0] += 1;
+
+                                                if (silenceOutgoingCount[0] > 5.0) {
+                                                    outgoingAudioLevelHolder.setValue(peer, false, 0);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    } else {
+                        incomingAudioLevelHolder.setValue(peer, false, 0);
+                        outgoingAudioLevelHolder.setValue(peer, false, 0);
+                    }
+                }
+            }
+        }, 0, 100);
+
+        isVoiceTimerRunning = true;
     }
 
     MediaStream getStreamForReactTag(String streamReactTag) {
@@ -1397,6 +1539,10 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void dataChannelClose(int peerConnectionId, String reactTag) {
+        if (isVoiceTimerRunning) {
+            voiceTimer.cancel();
+        }
+
         ThreadUtils.runOnExecutor(() -> {
             // Forward to PeerConnectionObserver which deals with DataChannels
             // because DataChannel is owned by PeerConnection.
@@ -1412,6 +1558,10 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void dataChannelDispose(int peerConnectionId, String reactTag) {
+        if (isVoiceTimerRunning) {
+            voiceTimer.cancel();
+        }
+
         ThreadUtils.runOnExecutor(() -> {
             PeerConnectionObserver pco = mPeerConnectionObservers.get(peerConnectionId);
             if (pco == null || pco.getPeerConnection() == null) {
