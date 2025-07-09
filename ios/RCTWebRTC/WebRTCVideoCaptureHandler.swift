@@ -51,8 +51,7 @@ final public class WebRTCVoiceHandler: NSObject {
   }
 
   private func observeVoiceActivity(peerConnections: [RTCPeerConnection]) async {
-    let checkInterval: Double = 0.1
-    let silenceThreshold: Double = 0.3
+    let checkInterval: Double = 0.3
 
     var silenceIncomingCount: Double = 0
     var silenceOutgoingCount: Double = 0
@@ -69,11 +68,12 @@ final public class WebRTCVoiceHandler: NSObject {
                   guard let audioLevel = statistic.values["audioLevel"] as? Double else { return }
 
                   if audioLevel > 0.1 {
+                    silenceIncomingCount = 0
                     self.incomingVoicePublisher.send((peerConnection, true, audioLevel))
                   } else {
                     silenceIncomingCount += 1
 
-                    if silenceIncomingCount > silenceThreshold / checkInterval {
+                    if silenceIncomingCount > 5 {
                       self.incomingVoicePublisher.send((peerConnection, false, audioLevel))
                     }
                   }
@@ -83,11 +83,12 @@ final public class WebRTCVoiceHandler: NSObject {
                   guard let audioLevel = statistic.values["audioLevel"] as? Double else { return }
 
                   if audioLevel > 0.1 {
+                    silenceOutgoingCount = 0
                     self.outgoingVoicePublisher.send((peerConnection, true, audioLevel))
                   } else {
                     silenceOutgoingCount += 1
 
-                    if silenceOutgoingCount > silenceThreshold / checkInterval {
+                    if silenceOutgoingCount > 5 {
                       self.outgoingVoicePublisher.send((peerConnection, false, audioLevel))
                     }
                   }

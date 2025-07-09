@@ -466,7 +466,7 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
     }
 
     void observeVoiceActivity() {
-        double checkInterval = 0.1;
+        double checkInterval = 0.3;
         double silenceThreshold = 0.3;
 
         final double[] silenceIncomingCount = {0};
@@ -493,11 +493,12 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
                                             Double audioLevel = ((Double) audioLevelObject);
 
                                             if (audioLevel > 0.1) {
+                                                silenceIncomingCount[0] = 0;
                                                 incomingAudioLevelHolder.setValue(peer, true, audioLevel.doubleValue());
                                             } else {
                                                 silenceIncomingCount[0] += 1;
 
-                                                if (silenceIncomingCount[0] > silenceThreshold / checkInterval) {
+                                                if (silenceIncomingCount[0] > 5.0) {
                                                     incomingAudioLevelHolder.setValue(peer, false, 0);
                                                 }
                                             }
@@ -511,11 +512,12 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
                                             Double audioLevel = ((Double) audioLevelObject);
 
                                             if (audioLevel > 0.1) {
+                                                silenceOutgoingCount[0] = 0;
                                                 outgoingAudioLevelHolder.setValue(peer, true, audioLevel.doubleValue());
                                             } else {
                                                 silenceOutgoingCount[0] += 1;
 
-                                                if (silenceOutgoingCount[0] > silenceThreshold / checkInterval) {
+                                                if (silenceOutgoingCount[0] > 5.0) {
                                                     outgoingAudioLevelHolder.setValue(peer, false, 0);
                                                 }
                                             }
