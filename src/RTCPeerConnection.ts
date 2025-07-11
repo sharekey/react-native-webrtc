@@ -45,6 +45,11 @@ type RTCDataChannelInit = {
     id?: number
 };
 
+type RTCVoice = {
+    incoming: { isSpeaking: boolean, audioLevel: number },
+    outgoing: { isSpeaking: boolean, audioLevel: number }
+};
+
 type RTCIceServer = {
     credential?: string,
     url?: string, // Deprecated.
@@ -68,6 +73,7 @@ type RTCPeerConnectionEventMap = {
     icegatheringstatechange: Event<'icegatheringstatechange'>
     negotiationneeded: Event<'negotiationneeded'>
     signalingstatechange: Event<'signalingstatechange'>
+    voicestatechange: Event<'voicestatechange'>
     datachannel: RTCDataChannelEvent<'datachannel'>
     track: RTCTrackEvent<'track'>
     error: Event<'error'>
@@ -82,6 +88,8 @@ export default class RTCPeerConnection extends EventTarget<RTCPeerConnectionEven
     iceGatheringState: RTCIceGatheringState = 'new';
     connectionState: RTCPeerConnectionState = 'new';
     iceConnectionState: RTCIceConnectionState = 'new';
+
+    voiceState: RTCVoice = { incoming: { isSpeaking: false, audioLevel: 0 }, outgoing: { isSpeaking: false, audioLevel: 0 } };
 
     _pcId: number;
     _transceivers: { order: number, transceiver: RTCRtpTransceiver }[];
@@ -598,6 +606,16 @@ export default class RTCPeerConnection extends EventTarget<RTCPeerConnectionEven
                 WebRTCModule.peerConnectionDispose(this._pcId);
             }
         });
+        
+        addListener(this, 'peerVoiceStateChanged', (ev: any) => {            
+            if (ev.pcId !== this._pcId) {
+                return;
+            }
+
+            this.voiceState = { ...this.voiceState, ...ev };
+
+            this.dispatchEvent(new Event('voicestatechange'));
+        });
 
         addListener(this, 'peerConnectionSignalingStateChanged', (ev: any) => {
             if (ev.pcId !== this._pcId) {
@@ -828,6 +846,7 @@ defineEventAttribute(proto, 'iceconnectionstatechange');
 defineEventAttribute(proto, 'icegatheringstatechange');
 defineEventAttribute(proto, 'negotiationneeded');
 defineEventAttribute(proto, 'signalingstatechange');
+defineEventAttribute(proto, 'voicestatechange');
 defineEventAttribute(proto, 'datachannel');
 defineEventAttribute(proto, 'track');
 defineEventAttribute(proto, 'error');
