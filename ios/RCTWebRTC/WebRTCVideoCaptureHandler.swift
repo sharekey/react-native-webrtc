@@ -78,26 +78,31 @@ final public class WebRTCVoiceHandler: NSObject {
                     }
                   }
                 }
-
-                if statistic.type == "media-source" {
-                  guard let audioLevel = statistic.values["audioLevel"] as? Double else { return }
-
-                  if audioLevel > 0.1 {
-                    silenceOutgoingCount = 0
-                    self.outgoingVoicePublisher.send((peerConnection, true, audioLevel))
-                  } else {
-                    silenceOutgoingCount += 1
-
-                    if silenceOutgoingCount > 5 {
-                      self.outgoingVoicePublisher.send((peerConnection, false, audioLevel))
-                    }
-                  }
-                }
               }
             }
           } else {
             self.incomingVoicePublisher.send((peerConnection, false, 0))
-            self.outgoingVoicePublisher.send((peerConnection, false, 0))
+          }
+        }
+
+        if let peerConnection = peerConnections.first(where: { $0.connectionState == .connected }) {
+          peerConnection.statistics { reports in
+            for statistic in reports.statistics.values {
+
+              if statistic.type == "media-source" {
+                guard let audioLevel = statistic.values["audioLevel"] as? Double else { return }
+                if audioLevel > 0.01 {
+                  silenceOutgoingCount = 0
+                  self.outgoingVoicePublisher.send((peerConnection, true, audioLevel))
+                } else {
+                  silenceOutgoingCount += 1
+
+                  if silenceOutgoingCount > 5 {
+                    self.outgoingVoicePublisher.send((peerConnection, false, audioLevel))
+                  }
+                }
+              }
+            }
           }
         }
 

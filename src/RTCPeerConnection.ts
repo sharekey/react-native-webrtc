@@ -606,13 +606,13 @@ export default class RTCPeerConnection extends EventTarget<RTCPeerConnectionEven
                 WebRTCModule.peerConnectionDispose(this._pcId);
             }
         });
-        
-        addListener(this, 'peerVoiceStateChanged', (ev: any) => {            
+
+        addListener(this, 'peerVoiceStateChanged', (ev: any) => {
             if (ev.pcId !== this._pcId) {
                 return;
             }
 
-            this.voiceState = { ...this.voiceState, ...ev };
+            this.voiceState = { ...ev };
 
             this.dispatchEvent(new Event('voicestatechange'));
         });

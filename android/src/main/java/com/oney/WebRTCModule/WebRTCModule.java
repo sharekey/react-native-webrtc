@@ -528,14 +528,31 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
                                             }
                                         }
                                     }
+                                }
+                            }
+                        });
+                    } else {
+                        incomingAudioLevelHolder.setValue(peer, false, 0);
+                    }
+                }
 
+                for (int i = 0; i < mPeerConnectionObservers.size(); i++) {
+                    int key = mPeerConnectionObservers.keyAt(i);
+                    PeerConnectionObserver peer = mPeerConnectionObservers.get(key);
+
+                    if (peer.getPeerConnection().connectionState() == PeerConnection.PeerConnectionState.CONNECTED) {
+                        peer.getPeerConnection().getStats(new RTCStatsCollectorCallback() {
+                            @Override
+                            public void onStatsDelivered(RTCStatsReport rtcStatsReport) {
+
+                                for (RTCStats stats : rtcStatsReport.getStatsMap().values()) {
                                     if (stats.getType().equals("media-source")) {
                                         Object audioLevelObject = stats.getMembers().get("audioLevel");
 
                                         if (audioLevelObject instanceof Double) {
                                             Double audioLevel = ((Double) audioLevelObject);
 
-                                            if (audioLevel > 0.1) {
+                                            if (audioLevel > 0.01) {
                                                 silenceOutgoingCount[0] = 0;
                                                 outgoingAudioLevelHolder.setValue(peer, true, audioLevel.doubleValue());
                                             } else {
@@ -550,9 +567,8 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
                                 }
                             }
                         });
-                    } else {
-                        incomingAudioLevelHolder.setValue(peer, false, 0);
-                        outgoingAudioLevelHolder.setValue(peer, false, 0);
+                        
+                        return;
                     }
                 }
             }
