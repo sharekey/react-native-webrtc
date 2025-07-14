@@ -62,48 +62,53 @@ final public class WebRTCVoiceHandler: NSObject {
           guard let self = self else { return }
 
           if peerConnection.connectionState == .connected {
-            peerConnection.statistics { reports in
-              for statistic in reports.statistics.values {
-                if statistic.type == "inbound-rtp" {
-                  guard let audioLevel = statistic.values["audioLevel"] as? Double else { return }
+            peerConnection.receivers.forEach {
+              if $0.track?.kind == "audio" {
+                peerConnection.statistics(for: $0) { stats in
+                  for statistic in stats.statistics.values {
+                    if statistic.type == "inbound-rtp" {
+                      guard let audioLevel = statistic.values["audioLevel"] as? Double else { return }
+                      if audioLevel > 0.01 {
+                        silenceIncomingCount = 0
+                        self.incomingVoicePublisher.send((peerConnection, true, audioLevel))
+                      } else {
+                        silenceIncomingCount += 1
 
-                  if audioLevel > 0.1 {
-                    silenceIncomingCount = 0
-                    self.incomingVoicePublisher.send((peerConnection, true, audioLevel))
-                  } else {
-                    silenceIncomingCount += 1
-
-                    if silenceIncomingCount > 5 {
-                      self.incomingVoicePublisher.send((peerConnection, false, audioLevel))
+                        if silenceIncomingCount > 5 {
+                          self.incomingVoicePublisher.send((peerConnection, false, audioLevel))
+                        }
+                      }
                     }
                   }
                 }
               }
             }
-          } else {
-            self.incomingVoicePublisher.send((peerConnection, false, 0))
           }
         }
 
         if let peerConnection = peerConnections.first(where: { $0.connectionState == .connected }) {
-          peerConnection.statistics { reports in
-            for statistic in reports.statistics.values {
+          peerConnection.senders.forEach {
+            if $0.track?.kind == "audio" {
+              peerConnection.statistics(for: $0) { stats in
+                for statistic in stats.statistics.values {
+                  if statistic.type == "media-source" {
+                    guard let audioLevel = statistic.values["audioLevel"] as? Double else { return }
+                    if audioLevel > 0.01 {
+                      silenceOutgoingCount = 0
+                      self.outgoingVoicePublisher.send((peerConnection, true, audioLevel))
+                    } else {
+                      silenceOutgoingCount += 1
 
-              if statistic.type == "media-source" {
-                guard let audioLevel = statistic.values["audioLevel"] as? Double else { return }
-                if audioLevel > 0.01 {
-                  silenceOutgoingCount = 0
-                  self.outgoingVoicePublisher.send((peerConnection, true, audioLevel))
-                } else {
-                  silenceOutgoingCount += 1
-
-                  if silenceOutgoingCount > 5 {
-                    self.outgoingVoicePublisher.send((peerConnection, false, audioLevel))
+                      if silenceOutgoingCount > 5 {
+                        self.outgoingVoicePublisher.send((peerConnection, false, audioLevel))
+                      }
+                    }
                   }
                 }
               }
             }
           }
+
         }
 
         try await Task.sleep(nanoseconds: UInt64(checkInterval * 1000000000))

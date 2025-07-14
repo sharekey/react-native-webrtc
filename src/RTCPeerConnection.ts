@@ -612,7 +612,7 @@ export default class RTCPeerConnection extends EventTarget<RTCPeerConnectionEven
                 return;
             }
 
-            this.voiceState = { ...ev };
+            this.voiceState = { ...this.voiceState, ...ev };
 
             this.dispatchEvent(new Event('voicestatechange'));
         });
