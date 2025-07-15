@@ -82,7 +82,7 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
     private final SparseArray<PeerConnectionObserver> mPeerConnectionObservers;
     final Map<String, MediaStream> localStreams;
 
-    Timer voiceTimer;
+    static Timer voiceTimer;
     boolean isVoiceTimerRunning = false;
 
     AudioLevelValueHolder incomingAudioLevelHolder;
@@ -489,15 +489,25 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
         }
     }
 
+    void cancelVoiceActivity() {
+        if (WebRTCModule.voiceTimer != null) {
+            WebRTCModule.voiceTimer.cancel();
+            WebRTCModule.voiceTimer.purge();
+            WebRTCModule.voiceTimer = null;
+        }
+    }
+
     void observeVoiceActivity() {
-        double checkInterval = 0.3;
+        int checkInterval = 300;
         double silenceThreshold = 0.3;
 
         final double[] silenceIncomingCount = {0};
         final double[] silenceOutgoingCount = {0};
 
-        voiceTimer = new Timer();
-        voiceTimer.schedule(new TimerTask() {
+        cancelVoiceActivity();
+
+        WebRTCModule.voiceTimer = new Timer();
+        WebRTCModule.voiceTimer.schedule(new TimerTask() {
             @Override
             public void run() {
                 for (int i = 0; i < mPeerConnectionObservers.size(); i++) {
@@ -516,7 +526,7 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
                                         if (audioLevelObject instanceof Double) {
                                             Double audioLevel = ((Double) audioLevelObject);
 
-                                            if (audioLevel > 0.1) {
+                                            if (audioLevel > 0.025) {
                                                 silenceIncomingCount[0] = 0;
                                                 incomingAudioLevelHolder.setValue(peer, true, audioLevel.doubleValue());
                                             } else {
@@ -567,12 +577,12 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
                                 }
                             }
                         });
-                        
+
                         return;
                     }
                 }
             }
-        }, 0, 100);
+        }, 0, checkInterval);
 
         isVoiceTimerRunning = true;
     }
@@ -1518,6 +1528,10 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
             }
             pco.dispose();
             mPeerConnectionObservers.remove(id);
+
+            if (mPeerConnectionObservers.size() == 0) {
+                cancelVoiceActivity();
+            }
         });
     }
 
@@ -1555,9 +1569,7 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void dataChannelClose(int peerConnectionId, String reactTag) {
-        if (isVoiceTimerRunning) {
-            voiceTimer.cancel();
-        }
+        cancelVoiceActivity();
 
         ThreadUtils.runOnExecutor(() -> {
             // Forward to PeerConnectionObserver which deals with DataChannels
@@ -1574,9 +1586,7 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void dataChannelDispose(int peerConnectionId, String reactTag) {
-        if (isVoiceTimerRunning) {
-            voiceTimer.cancel();
-        }
+        cancelVoiceActivity();
 
         ThreadUtils.runOnExecutor(() -> {
             PeerConnectionObserver pco = mPeerConnectionObservers.get(peerConnectionId);
