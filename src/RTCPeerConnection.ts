@@ -46,8 +46,8 @@ type RTCDataChannelInit = {
 };
 
 type RTCVoice = {
-    incoming: { isSpeaking: boolean, audioLevel: number },
-    outgoing: { isSpeaking: boolean, audioLevel: number }
+    isSpeaking: boolean;
+    audioLevel: number;
 };
 
 type RTCIceServer = {
@@ -73,7 +73,8 @@ type RTCPeerConnectionEventMap = {
     icegatheringstatechange: Event<'icegatheringstatechange'>
     negotiationneeded: Event<'negotiationneeded'>
     signalingstatechange: Event<'signalingstatechange'>
-    voicestatechange: Event<'voicestatechange'>
+    voiceincomingstatechange: Event<'voiceincomingstatechange'>
+    voiceoutgoingstatechange: Event<'voiceoutgoingstatechange'>
     datachannel: RTCDataChannelEvent<'datachannel'>
     track: RTCTrackEvent<'track'>
     error: Event<'error'>
@@ -89,7 +90,8 @@ export default class RTCPeerConnection extends EventTarget<RTCPeerConnectionEven
     connectionState: RTCPeerConnectionState = 'new';
     iceConnectionState: RTCIceConnectionState = 'new';
 
-    voiceState: RTCVoice = { incoming: { isSpeaking: false, audioLevel: 0 }, outgoing: { isSpeaking: false, audioLevel: 0 } };
+    voiceIncomingState: RTCVoice = { isSpeaking: false, audioLevel: 0 }
+    voiceOutgoingState: RTCVoice = { isSpeaking: false, audioLevel: 0 }
 
     _pcId: number;
     _transceivers: { order: number, transceiver: RTCRtpTransceiver }[];
@@ -607,14 +609,24 @@ export default class RTCPeerConnection extends EventTarget<RTCPeerConnectionEven
             }
         });
 
-        addListener(this, 'peerVoiceStateChanged', (ev: any) => {
+        addListener(this, 'peerVoiceIncomingStateChanged', (ev: any) => {
             if (ev.pcId !== this._pcId) {
                 return;
             }
 
-            this.voiceState = { ...this.voiceState, ...ev };
+            this.voiceIncomingState = { ...ev };
 
-            this.dispatchEvent(new Event('voicestatechange'));
+            this.dispatchEvent(new Event('voiceincomingstatechange'));
+        });
+
+        addListener(this, 'peerVoiceOutgoingStateChanged', (ev: any) => {
+            if (ev.pcId !== this._pcId) {
+                return;
+            }
+
+            this.voiceOutgoingState = { ...ev };
+
+            this.dispatchEvent(new Event('voiceoutgoingstatechange'));
         });
 
         addListener(this, 'peerConnectionSignalingStateChanged', (ev: any) => {
@@ -846,7 +858,8 @@ defineEventAttribute(proto, 'iceconnectionstatechange');
 defineEventAttribute(proto, 'icegatheringstatechange');
 defineEventAttribute(proto, 'negotiationneeded');
 defineEventAttribute(proto, 'signalingstatechange');
-defineEventAttribute(proto, 'voicestatechange');
+defineEventAttribute(proto, 'voiceincomingstatechange');
+defineEventAttribute(proto, 'voiceoutgoingstatechange');
 defineEventAttribute(proto, 'datachannel');
 defineEventAttribute(proto, 'track');
 defineEventAttribute(proto, 'error');

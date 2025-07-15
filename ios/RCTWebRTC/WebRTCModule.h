@@ -8,7 +8,8 @@
 #import <WebRTC/WebRTC.h>
 #import "VideoCaptureController.h"
 
-static NSString *const kEventPeerVoiceStateChanged = @"peerVoiceStateChanged";
+static NSString *const kEventPeerVoiceIncomingStateChanged = @"peerVoiceIncomingStateChanged";
+static NSString *const kEventPeerVoiceOutgoingStateChanged = @"peerVoiceOutgoingStateChanged";
 static NSString *const kEventPeerConnectionSignalingStateChanged = @"peerConnectionSignalingStateChanged";
 static NSString *const kEventPeerConnectionStateChanged = @"peerConnectionStateChanged";
 static NSString *const kEventPeerConnectionOnRenegotiationNeeded = @"peerConnectionOnRenegotiationNeeded";

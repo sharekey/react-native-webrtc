@@ -29,12 +29,12 @@ final public class WebRTCVoiceHandler: NSObject {
       await observeVoiceActivity(peerConnections: peerConnections)
     }
 
-    outgoingVoicePublisher.removeDuplicates(by: { $0.1 == $1.1 }).sink { (peer, isSpeaking, audioLevel) in
+    outgoingVoicePublisher.removeDuplicates(by: { $0.0?.reactTag == $1.0?.reactTag && $0.1 == $1.1 }).sink { (peer, isSpeaking, audioLevel) in
       guard let peer else { return }
       voiceClosure(peer, true, isSpeaking, audioLevel)
     }.store(in: &disposeBag)
 
-    incomingVoicePublisher.removeDuplicates(by: { $0.1 == $1.1 }).sink { (peer, isSpeaking, audioLevel) in
+    incomingVoicePublisher.removeDuplicates(by: { $0.0?.reactTag == $1.0?.reactTag && $0.1 == $1.1 }).sink { (peer, isSpeaking, audioLevel) in
       guard let peer else { return }
       voiceClosure(peer, false, isSpeaking, audioLevel)
     }.store(in: &disposeBag)
