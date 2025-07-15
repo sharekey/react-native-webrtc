@@ -120,20 +120,25 @@ RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(peerConnectionInit
                        voiceClosure:^(RTCPeerConnection* peerConnection, BOOL outgoing, BOOL isSpeaking, double audioLevel) {
 
     dispatch_async(self.workerQueue, ^{
-      [self sendEventWithName:kEventPeerVoiceStateChanged
-                         body:
-       outgoing
-       ?
-       @{@"outgoing": @{
-         @"isSpeaking" : @(isSpeaking),
-         @"audioLevel" : @(audioLevel)
-       }, @"pcId" : peerConnection.reactTag}
-       :
-       @{@"incoming": @{
-         @"isSpeaking" : @(isSpeaking),
-         @"audioLevel" : @(audioLevel)
-       }, @"pcId" : peerConnection.reactTag}
-      ];
+      if (outgoing) {
+        [self sendEventWithName:kEventPeerVoiceOutgoingStateChanged
+                           body:
+         @{
+           @"isSpeaking" : @(isSpeaking),
+           @"audioLevel" : @(audioLevel),
+           @"pcId" : peerConnection.reactTag
+          }
+        ];
+      } else {
+        [self sendEventWithName:kEventPeerVoiceIncomingStateChanged
+                           body:
+         @{
+           @"isSpeaking" : @(isSpeaking),
+           @"audioLevel" : @(audioLevel),
+           @"pcId" : peerConnection.reactTag
+          }
+        ];
+      }
     });
   }];
 }
