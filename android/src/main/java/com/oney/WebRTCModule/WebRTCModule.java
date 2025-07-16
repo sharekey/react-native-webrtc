@@ -7,6 +7,7 @@ import android.util.Log;
 import android.util.Pair;
 import android.util.SparseArray;
 import android.util.SparseBooleanArray;
+import android.util.SparseIntArray;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -211,7 +212,7 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
             }
         });
     }
-    
+
     @NonNull
     @Override
     public String getName() {
@@ -510,10 +511,15 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
 
     void observeVoiceActivity() {
         int checkInterval = 300;
-        double silenceThreshold = 0.3;
 
-        final double[] silenceIncomingCount = {0};
+        final SparseIntArray silenceIncomingCount = new SparseIntArray();
         final double[] silenceOutgoingCount = {0};
+
+        for (int i = 0; i < mPeerConnectionObservers.size(); i++) {
+            int key = mPeerConnectionObservers.keyAt(i);
+            PeerConnectionObserver peer = mPeerConnectionObservers.get(key);
+            silenceIncomingCount.put(peer.getId(), 0);
+        }
 
         cancelVoiceActivity();
 
@@ -524,6 +530,7 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
                 for (int i = 0; i < mPeerConnectionObservers.size(); i++) {
                     int key = mPeerConnectionObservers.keyAt(i);
                     PeerConnectionObserver peer = mPeerConnectionObservers.get(key);
+                    int id = peer.getId();
 
                     if (peer.getPeerConnection().connectionState() == PeerConnection.PeerConnectionState.CONNECTED) {
                         peer.getPeerConnection().getStats(new RTCStatsCollectorCallback() {
@@ -538,12 +545,12 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
                                             Double audioLevel = ((Double) audioLevelObject);
 
                                             if (audioLevel > 0.025) {
-                                                silenceIncomingCount[0] = 0;
+                                                silenceIncomingCount.put(id, 0);
                                                 incomingAudioLevelHolder.setValue(peer, true, audioLevel.doubleValue());
                                             } else {
-                                                silenceIncomingCount[0] += 1;
+                                                silenceIncomingCount.put(id, silenceIncomingCount.get(id) + 1);
 
-                                                if (silenceIncomingCount[0] > 5.0) {
+                                                if (silenceIncomingCount.get(id) > 4.0) {
                                                     incomingAudioLevelHolder.setValue(peer, false, 0);
                                                 }
                                             }
@@ -553,6 +560,7 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
                             }
                         });
                     } else {
+                        silenceIncomingCount.put(id, 0);
                         incomingAudioLevelHolder.setValue(peer, false, 0);
                     }
                 }
@@ -579,7 +587,7 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
                                             } else {
                                                 silenceOutgoingCount[0] += 1;
 
-                                                if (silenceOutgoingCount[0] > 5.0) {
+                                                if (silenceOutgoingCount[0] > 4.0) {
                                                     outgoingAudioLevelHolder.setValue(peer, false, 0);
                                                 }
                                             }
@@ -1484,7 +1492,7 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
                 candidateMap.hasKey("sdpMid") && !candidateMap.isNull("sdpMid") ? candidateMap.getString("sdpMid")  : "",
                 candidateMap.hasKey("sdpMLineIndex") && !candidateMap.isNull("sdpMLineIndex")  ? candidateMap.getInt("sdpMLineIndex") : 0,
                 candidateMap.getString("candidate"));
-            
+
             peerConnection.addIceCandidate(candidate, new AddIceObserver() {
                 @Override
                 public void onAddSuccess() {
@@ -1580,8 +1588,6 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void dataChannelClose(int peerConnectionId, String reactTag) {
-        cancelVoiceActivity();
-
         ThreadUtils.runOnExecutor(() -> {
             // Forward to PeerConnectionObserver which deals with DataChannels
             // because DataChannel is owned by PeerConnection.
@@ -1597,8 +1603,6 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void dataChannelDispose(int peerConnectionId, String reactTag) {
-        cancelVoiceActivity();
-
         ThreadUtils.runOnExecutor(() -> {
             PeerConnectionObserver pco = mPeerConnectionObservers.get(peerConnectionId);
             if (pco == null || pco.getPeerConnection() == null) {

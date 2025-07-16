@@ -52,9 +52,13 @@ final public class WebRTCVoiceHandler: NSObject {
 
   private func observeVoiceActivity(peerConnections: [RTCPeerConnection]) async {
     let checkInterval: Double = 0.3
-
-    var silenceIncomingCount: Double = 0
+    
+    var silenceIncomingCount: [NSNumber: Double] = [:]
     var silenceOutgoingCount: Double = 0
+
+    peerConnections.forEach {
+      silenceIncomingCount[$0.reactTag] = 0
+    }
 
     while !Task.isCancelled {
       do {
@@ -68,13 +72,15 @@ final public class WebRTCVoiceHandler: NSObject {
                   for statistic in stats.statistics.values {
                     if statistic.type == "inbound-rtp" {
                       guard let audioLevel = statistic.values["audioLevel"] as? Double else { return }
-                      if audioLevel > 0.01 {
-                        silenceIncomingCount = 0
+
+                      if audioLevel > 0.025 {
+                        silenceIncomingCount[peerConnection.reactTag] = 0
                         self.incomingVoicePublisher.send((peerConnection, true, audioLevel))
                       } else {
-                        silenceIncomingCount += 1
+                        let count = silenceIncomingCount[peerConnection.reactTag] ?? 0
+                        silenceIncomingCount[peerConnection.reactTag] = count + 1
 
-                        if silenceIncomingCount > 5 {
+                        if count > 4 {
                           self.incomingVoicePublisher.send((peerConnection, false, audioLevel))
                         }
                       }
@@ -83,6 +89,9 @@ final public class WebRTCVoiceHandler: NSObject {
                 }
               }
             }
+          } else {
+            silenceIncomingCount[peerConnection.reactTag] = 0
+            self.incomingVoicePublisher.send((peerConnection, false, 0))
           }
         }
 
@@ -99,7 +108,7 @@ final public class WebRTCVoiceHandler: NSObject {
                     } else {
                       silenceOutgoingCount += 1
 
-                      if silenceOutgoingCount > 5 {
+                      if silenceOutgoingCount > 4 {
                         self.outgoingVoicePublisher.send((peerConnection, false, audioLevel))
                       }
                     }
