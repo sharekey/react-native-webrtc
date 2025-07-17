@@ -391,6 +391,12 @@ RCT_EXPORT_METHOD(peerConnectionDispose : (nonnull NSNumber *)objectID) {
     [dataChannels removeAllObjects];
 
     [self.peerConnections removeObjectForKey:objectID];
+
+    if (self.peerConnections.count == 0) {
+      [(WebRTCVoiceHandler*)self.voiceHandler stopObserve];
+    } else {
+      [self checkAudioLevel];
+    }
 }
 
 RCT_EXPORT_METHOD(peerConnectionGetStats

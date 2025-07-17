@@ -559,9 +559,6 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
                                 }
                             }
                         });
-                    } else {
-                        silenceIncomingCount.put(id, 0);
-                        incomingAudioLevelHolder.setValue(peer, false, 0);
                     }
                 }
 

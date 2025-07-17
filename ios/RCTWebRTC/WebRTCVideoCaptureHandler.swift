@@ -52,7 +52,7 @@ final public class WebRTCVoiceHandler: NSObject {
 
   private func observeVoiceActivity(peerConnections: [RTCPeerConnection]) async {
     let checkInterval: Double = 0.3
-    
+
     var silenceIncomingCount: [NSNumber: Double] = [:]
     var silenceOutgoingCount: Double = 0
 
@@ -89,9 +89,6 @@ final public class WebRTCVoiceHandler: NSObject {
                 }
               }
             }
-          } else {
-            silenceIncomingCount[peerConnection.reactTag] = 0
-            self.incomingVoicePublisher.send((peerConnection, false, 0))
           }
         }
 
