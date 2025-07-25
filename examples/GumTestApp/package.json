@@ -11,7 +11,7 @@
     "postinstall": "install-local ../../"
   },
   "dependencies": {
-    "react": "18.2.0",
+    "react": "18.3.1",
     "react-native": "0.71.4",
     "react-native-webrtc": "*"
   },
