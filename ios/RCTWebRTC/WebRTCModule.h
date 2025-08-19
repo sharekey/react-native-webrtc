@@ -35,6 +35,7 @@ static NSString *const kEventPeerConnectionOnTrack = @"peerConnectionOnTrack";
 @property(nonatomic, strong) NSMutableDictionary<NSString *, RTCMediaStream *> *localStreams;
 @property(nonatomic, strong) NSMutableDictionary<NSString *, RTCMediaStreamTrack *> *localTracks;
 @property (nonatomic, strong) id videoSourceInterceptor;
+@property (nonatomic, strong) RTCVideoSource *videoSource;
 @property (nonatomic, strong) VideoCaptureController *videoCaptureController;
 
 - (RTCMediaStream *)streamForReactTag:(NSString *)reactTag;
