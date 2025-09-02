@@ -13,6 +13,118 @@ import CoreImage
 import Foundation
 import CoreImage.CIFilterBuiltins
 
+final public class WebRTCVoiceHandler: NSObject {
+  private var outgoingVoicePublisher: CurrentValueSubject<(RTCPeerConnection?, Bool, Double), Never> = .init((nil, false, 0))
+  private var incomingVoicePublisher: CurrentValueSubject<(RTCPeerConnection?, Bool, Double), Never> = .init((nil, false, 0))
+
+  private var observeTask: Task<Void, Never>?
+  private var disposeBag: Set<AnyCancellable> = []
+
+  @objc
+  public func startObserve(peerConnections: [RTCPeerConnection],
+                           voiceClosure: @escaping (RTCPeerConnection, Bool, Bool, Double) -> Void) -> Self {
+    let _ = stopObserve()
+
+    observeTask = Task {
+      await observeVoiceActivity(peerConnections: peerConnections)
+    }
+
+    outgoingVoicePublisher.removeDuplicates(by: { $0.0?.reactTag == $1.0?.reactTag && $0.1 == $1.1 }).sink { (peer, isSpeaking, audioLevel) in
+      guard let peer else { return }
+      voiceClosure(peer, true, isSpeaking, audioLevel)
+    }.store(in: &disposeBag)
+
+    incomingVoicePublisher.removeDuplicates(by: { $0.0?.reactTag == $1.0?.reactTag && $0.1 == $1.1 }).sink { (peer, isSpeaking, audioLevel) in
+      guard let peer else { return }
+      voiceClosure(peer, false, isSpeaking, audioLevel)
+    }.store(in: &disposeBag)
+
+    return self
+  }
+
+  @objc
+  public func stopObserve() -> Self {
+    observeTask?.cancel()
+    disposeBag.forEach { $0.cancel() }
+
+    return self
+  }
+
+  private func observeVoiceActivity(peerConnections: [RTCPeerConnection]) async {
+    let checkInterval: Double = 0.3
+
+    var silenceIncomingCount: [NSNumber: Double] = [:]
+    var silenceOutgoingCount: Double = 0
+
+    peerConnections.forEach {
+      silenceIncomingCount[$0.reactTag] = 0
+    }
+
+    while !Task.isCancelled {
+      do {
+        peerConnections.forEach { [weak self] peerConnection in
+          guard let self = self else { return }
+
+          if peerConnection.connectionState == .connected {
+            peerConnection.receivers.forEach {
+              if $0.track?.kind == "audio" {
+                peerConnection.statistics(for: $0) { stats in
+                  for statistic in stats.statistics.values {
+                    if statistic.type == "inbound-rtp" {
+                      guard let audioLevel = statistic.values["audioLevel"] as? Double else { return }
+
+                      if audioLevel > 0.025 {
+                        silenceIncomingCount[peerConnection.reactTag] = 0
+                        self.incomingVoicePublisher.send((peerConnection, true, audioLevel))
+                      } else {
+                        let count = silenceIncomingCount[peerConnection.reactTag] ?? 0
+                        silenceIncomingCount[peerConnection.reactTag] = count + 1
+
+                        if count > 4 {
+                          self.incomingVoicePublisher.send((peerConnection, false, audioLevel))
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        if let peerConnection = peerConnections.first(where: { $0.connectionState == .connected }) {
+          peerConnection.senders.forEach {
+            if $0.track?.kind == "audio" {
+              peerConnection.statistics(for: $0) { stats in
+                for statistic in stats.statistics.values {
+                  if statistic.type == "media-source" {
+                    guard let audioLevel = statistic.values["audioLevel"] as? Double else { return }
+                    if audioLevel > 0.01 {
+                      silenceOutgoingCount = 0
+                      self.outgoingVoicePublisher.send((peerConnection, true, audioLevel))
+                    } else {
+                      silenceOutgoingCount += 1
+
+                      if silenceOutgoingCount > 4 {
+                        self.outgoingVoicePublisher.send((peerConnection, false, audioLevel))
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+        }
+
+        try await Task.sleep(nanoseconds: UInt64(checkInterval * 1000000000))
+      } catch {
+        print(error)
+      }
+    }
+  }
+}
+
 final public class WebRTCVideoCaptureHandler: NSObject, RTCVideoCapturerDelegate {
   var selectedFilter: VideoFilter?
 
@@ -35,11 +147,43 @@ final public class WebRTCVideoCaptureHandler: NSObject, RTCVideoCapturerDelegate
     self.source = source
     self.context = CIContext(options: [CIContextOption.useSoftwareRenderer: false])
     self.colorSpace = CGColorSpaceCreateDeviceRGB()
-    self.handleRotation = true
+    self.handleRotation = false
 
     super.init()
+
+    NotificationCenter.default.addObserver(self,
+                                           selector: #selector(orientationChanged),
+                                           name: UIDevice.orientationDidChangeNotification, object: nil)
   }
 
+  deinit {
+    NotificationCenter.default.removeObserver(self)
+  }
+
+  @objc func orientationChanged() {
+    self.sceneOrientation = {
+    #if canImport(UIKit)
+        if let window = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+          switch window.interfaceOrientation {
+          case .unknown, .portrait:
+            return .portrait(isUpsideDown: false)
+          case .portraitUpsideDown:
+            return .portrait(isUpsideDown: true)
+          case .landscapeLeft:
+            return .landscape(isLeft: true)
+          case .landscapeRight:
+            return .landscape(isLeft: false)
+          @unknown default:
+            return .portrait(isUpsideDown: false)
+          }
+        } else {
+          return .portrait(isUpsideDown: false)
+        }
+    #else
+        return .portrait(isUpsideDown: false)
+    #endif
+    }()
+  }
 
   @objc
   public func enable(blur: Bool, backgroundImageData: Data?) {

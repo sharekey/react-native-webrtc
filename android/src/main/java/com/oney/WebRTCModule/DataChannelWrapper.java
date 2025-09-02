@@ -59,21 +59,28 @@ class DataChannelWrapper implements DataChannel.Observer {
 
     @Override
     public void onMessage(DataChannel.Buffer buffer) {
+        final byte[] copiedBytes;
+        try {
+            if (buffer.data.hasArray()) {
+                int offset = buffer.data.arrayOffset() + buffer.data.position();
+                int length = buffer.data.remaining();
+                copiedBytes = new byte[length];
+                System.arraycopy(buffer.data.array(), offset, copiedBytes, 0, length);
+            } else {
+                copiedBytes = new byte[buffer.data.remaining()];
+                buffer.data.get(copiedBytes);
+            }
+        } finally {
+            buffer.data.rewind();
+        }
+
         ThreadUtils.runOnExecutor(() -> {
             WritableMap params = Arguments.createMap();
             params.putString("reactTag", reactTag);
             params.putInt("peerConnectionId", peerConnectionId);
 
-            byte[] bytes;
-            if (buffer.data.hasArray()) {
-                bytes = buffer.data.array();
-            } else {
-                bytes = new byte[buffer.data.remaining()];
-                buffer.data.get(bytes);
-            }
-
             String type = "text";
-            String data = new String(bytes, StandardCharsets.UTF_8);
+            String data = new String(copiedBytes, StandardCharsets.UTF_8);
             params.putString("type", type);
             params.putString("data", data);
 

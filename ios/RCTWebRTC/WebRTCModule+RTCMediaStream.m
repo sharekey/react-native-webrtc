@@ -126,7 +126,8 @@
   videoCapturer = [[RTCCameraVideoCapturer alloc] initWithDelegate:self.videoSourceInterceptor];
 
   self.videoCaptureController = [[VideoCaptureController alloc] initWithCapturer:videoCapturer
-                                            andConstraints:videoContraints];
+                                                                     videoSource:videoSource
+                                                                  andConstraints:videoContraints];
   videoTrack.captureController = self.videoCaptureController;
   [self.videoCaptureController startCapture];
 #endif
