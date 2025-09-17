@@ -4,6 +4,8 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.media.projection.MediaProjectionManager;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import androidx.core.util.Consumer;
@@ -402,8 +404,9 @@ class GetUserMediaImpl {
 
         track.setEnabled(true);
         tracks.put(videoTrackId, new TrackPrivate(track, videoSource, videoCaptureController, surfaceTextureHelper));
-
-        videoCaptureController.startCapture();
+        
+        // Delay fix issue with app freezing on fold devices
+        new Handler(Looper.getMainLooper()).postDelayed(videoCaptureController::startCapture, 250);
 
         return track;
     }
