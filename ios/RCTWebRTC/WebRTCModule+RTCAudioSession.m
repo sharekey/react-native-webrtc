@@ -6,6 +6,17 @@
 #import "WebRTCModule.h"
 
 @implementation WebRTCModule (RTCAudioSession)
+RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(unlockPeerClosing) {
+    WebRTCAudioSession* session = [WebRTCAudioSession shared];
+    [session setAudioSessionEnabled:NO];
+    return nil;
+}
+
+RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(lockPeerClosing) {
+    WebRTCAudioSession* session = [WebRTCAudioSession shared];
+    [session setAudioSessionEnabled:YES];
+    return nil;
+}
 
 RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(audioSessionDidActivate) {
     [[RTCAudioSession sharedInstance] audioSessionDidActivate:[AVAudioSession sharedInstance]];
