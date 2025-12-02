@@ -4,6 +4,7 @@
 #import <React/RCTBridgeModule.h>
 
 #import "WebRTCModule.h"
+#import "WebRTCAudioSession.h"
 
 @implementation WebRTCModule (RTCAudioSession)
 RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(unlockPeerClosing) {
