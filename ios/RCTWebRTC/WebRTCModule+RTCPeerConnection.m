@@ -351,12 +351,23 @@ RCT_EXPORT_METHOD(peerConnectionAddICECandidate
 }
 
 RCT_EXPORT_METHOD(peerConnectionClose : (nonnull NSNumber *)objectID) {
+    CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
+
     RTCPeerConnection *peerConnection = self.peerConnections[objectID];
     if (!peerConnection) {
         return;
     }
 
+    WebRTCAudioSession* session = [WebRTCAudioSession shared];
+    [session setAudioSessionEnabled:NO];
+
     [peerConnection close];
+
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"dev_menu_logs" object:@{
+      @"append": @YES,
+      @"log": [NSString stringWithFormat:@"peerConnectionClose: time %.3f ms", (CFAbsoluteTimeGetCurrent() - start) * 1000],
+      @"key": @"Call End Time Elapsed"
+    }];
 }
 
 RCT_EXPORT_METHOD(peerConnectionDispose : (nonnull NSNumber *)objectID) {
