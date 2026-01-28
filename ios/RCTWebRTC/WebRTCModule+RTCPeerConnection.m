@@ -350,16 +350,13 @@ RCT_EXPORT_METHOD(peerConnectionAddICECandidate
     [peerConnection addIceCandidate:candidate completionHandler:handler];
 }
 
-RCT_EXPORT_METHOD(peerConnectionClose : (nonnull NSNumber *)objectID) {
+RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(peerConnectionClose : (nonnull NSNumber *)objectID) {
     CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
 
     RTCPeerConnection *peerConnection = self.peerConnections[objectID];
     if (!peerConnection) {
-        return;
+        return nil;
     }
-
-    WebRTCAudioSession* session = [WebRTCAudioSession shared];
-    [session setAudioSessionEnabled:NO];
 
     [peerConnection close];
 
@@ -368,6 +365,8 @@ RCT_EXPORT_METHOD(peerConnectionClose : (nonnull NSNumber *)objectID) {
       @"log": [NSString stringWithFormat:@"peerConnectionClose: time %.3f ms", (CFAbsoluteTimeGetCurrent() - start) * 1000],
       @"key": @"Call End Time Elapsed"
     }];
+
+  return nil;
 }
 
 RCT_EXPORT_METHOD(peerConnectionDispose : (nonnull NSNumber *)objectID) {
