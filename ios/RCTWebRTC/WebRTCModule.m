@@ -69,6 +69,29 @@
         RCTLogInfo(@"Using video encoder factory: %@", NSStringFromClass([encoderFactory class]));
         RCTLogInfo(@"Using video decoder factory: %@", NSStringFromClass([decoderFactory class]));
 
+        NSArray<RTCVideoCodecInfo *> *enc = [encoderFactory supportedCodecs];
+        NSArray<RTCVideoCodecInfo *> *dec = [decoderFactory supportedCodecs];
+        NSMutableArray *encNames = [NSMutableArray array];
+        for (RTCVideoCodecInfo *c in enc) { [encNames addObject:c.name ?: @""]; }
+        NSMutableArray *decNames = [NSMutableArray array];
+        for (RTCVideoCodecInfo *c in dec) { [decNames addObject:c.name ?: @""]; }
+
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"dev_menu_logs" object:@{
+          @"append": @YES,
+          @"log": [NSString stringWithFormat:@"Video Encoders: %@; Decoders: %@", encNames, decNames],
+          @"key": @"WebRTC"
+        }];
+
+        _callbackLogger = [RTCCallbackLogger new];
+        _callbackLogger.severity = loggingSeverity;
+        [_callbackLogger startWithMessageAndSeverityHandler:^(NSString *message, RTCLoggingSeverity severity) {
+          [[NSNotificationCenter defaultCenter] postNotificationName:@"dev_menu_logs" object:@{
+            @"append": @YES,
+            @"log": [NSString stringWithFormat:@"[RTC %ld] %@", (long)severity, message ?: @""],
+            @"key": @"WebRTC"
+          }];
+        }];
+
         _peerConnectionFactory = [[RTCPeerConnectionFactory alloc] initWithEncoderFactory:encoderFactory
                                                                            decoderFactory:decoderFactory
                                                                               audioDevice:audioDevice];

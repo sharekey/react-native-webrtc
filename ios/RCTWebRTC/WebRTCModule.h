@@ -33,6 +33,7 @@ static NSString *const kEventPeerConnectionOnTrack = @"peerConnectionOnTrack";
 @property(nonatomic, strong) RTCPeerConnectionFactory *peerConnectionFactory;
 @property(nonatomic, strong) id<RTCVideoDecoderFactory> decoderFactory;
 @property(nonatomic, strong) id<RTCVideoEncoderFactory> encoderFactory;
+@property(nonatomic, strong) RTCCallbackLogger* callbackLogger;
 
 @property(nonatomic, strong) NSMutableDictionary<NSNumber *, RTCPeerConnection *> *peerConnections;
 @property(nonatomic, strong) NSMutableDictionary<NSString *, RTCMediaStream *> *localStreams;
