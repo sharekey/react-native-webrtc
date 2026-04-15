@@ -43,6 +43,9 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 interface OnValueChangeListener {
     void onValueChanged(PeerConnectionObserver peerConnection, boolean isSpeaking, double audioLevel);
@@ -100,6 +103,10 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
 
     AudioLevelValueHolder incomingAudioLevelHolder;
     AudioLevelValueHolder outgoingAudioLevelHolder;
+
+    private final AtomicInteger voicePollGeneration = new AtomicInteger(0);
+    private final AtomicReference<Future<?>> voicePollTaskRef = new AtomicReference<>(null);
+
 
     private final GetUserMediaImpl getUserMediaImpl;
 
@@ -499,6 +506,14 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
     }
 
     void cancelVoiceActivity() {
+        // Invalidate all queued/running poll tasks from previous timer cycle.
+        voicePollGeneration.incrementAndGet();
+
+        Future<?> pending = voicePollTaskRef.getAndSet(null);
+        if (pending != null) {
+            pending.cancel(false);
+        }
+
         if (WebRTCModule.voiceTimer != null) {
             WebRTCModule.voiceTimer.cancel();
             WebRTCModule.voiceTimer.purge();
@@ -509,6 +524,7 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
         outgoingAudioLevelHolder.cleanup();
     }
 
+
     void observeVoiceActivity() {
         int checkInterval = 300;
 
@@ -518,42 +534,50 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
         for (int i = 0; i < mPeerConnectionObservers.size(); i++) {
             int key = mPeerConnectionObservers.keyAt(i);
             PeerConnectionObserver peer = mPeerConnectionObservers.get(key);
-
-            if (peer == null) {
-                continue;
+            if (peer != null) {
+                silenceIncomingCount.put(peer.getId(), 0);
             }
-
-            silenceIncomingCount.put(peer.getId(), 0);
         }
 
         cancelVoiceActivity();
+        final int generation = voicePollGeneration.incrementAndGet();
 
         WebRTCModule.voiceTimer = new Timer();
         WebRTCModule.voiceTimer.schedule(new TimerTask() {
             @Override
             public void run() {
-                ThreadUtils.runOnExecutor(() -> {
+                if (voicePollGeneration.get() != generation) {
+                    return;
+                }
+
+                Future<?> current = voicePollTaskRef.get();
+                if (current != null && !current.isDone()) {
+                    return; // previous tick still queued/running
+                }
+
+                Future<?> next = ThreadUtils.submitToExecutor(() -> {
+                    if (voicePollGeneration.get() != generation) {
+                        return;
+                    }
+
                     for (int i = 0; i < mPeerConnectionObservers.size(); i++) {
                         int key = mPeerConnectionObservers.keyAt(i);
                         PeerConnectionObserver peer = mPeerConnectionObservers.get(key);
-
                         if (peer == null) {
+                            continue;
+                        }
+
+                        PeerConnection peerConnection = peer.getPeerConnection();
+                        if (peerConnection == null) {
                             continue;
                         }
 
                         int id = peer.getId();
 
-                        PeerConnection peerConnection = peer.getPeerConnection();
-
-                        if (peerConnection == null) {
-                            continue;
-                        }
-
                         if (peerConnection.connectionState() == PeerConnection.PeerConnectionState.CONNECTED) {
                             peerConnection.getStats(new RTCStatsCollectorCallback() {
                                 @Override
                                 public void onStatsDelivered(RTCStatsReport rtcStatsReport) {
-
                                     for (RTCStats stats : rtcStatsReport.getStatsMap().values()) {
                                         if (stats.getType().equals("inbound-rtp")) {
                                             Object audioLevelObject = stats.getMembers().get("audioLevel");
@@ -595,7 +619,6 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
                             peerConnection.getStats(new RTCStatsCollectorCallback() {
                                 @Override
                                 public void onStatsDelivered(RTCStatsReport rtcStatsReport) {
-
                                     for (RTCStats stats : rtcStatsReport.getStatsMap().values()) {
                                         if (stats.getType().equals("media-source")) {
                                             Object audioLevelObject = stats.getMembers().get("audioLevel");
@@ -623,6 +646,8 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
                         }
                     }
                 });
+
+                voicePollTaskRef.set(next);
             }
         }, 0, checkInterval);
 
