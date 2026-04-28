@@ -12,7 +12,8 @@
 #import "ScreenCaptureController.h"
 #import "ScreenCapturer.h"
 #import "TrackCapturerEventsEmitter.h"
-#import "VideoCaptureController.h"
+
+#import "react_native_webrtc-Swift.h"
 
 @implementation WebRTCModule (RTCMediaStream)
 
@@ -109,17 +110,26 @@
 #if TARGET_OS_TV
     return nil;
 #else
+
     RTCVideoSource *videoSource = [self.peerConnectionFactory videoSource];
 
-    NSString *trackUUID = [[NSUUID UUID] UUIDString];
-    RTCVideoTrack *videoTrack = [self.peerConnectionFactory videoTrackWithSource:videoSource trackId:trackUUID];
+  NSString *trackUUID = [[NSUUID UUID] UUIDString];
+  RTCVideoTrack *videoTrack = [self.peerConnectionFactory videoTrackWithSource:videoSource trackId:trackUUID];
 
 #if !TARGET_IPHONE_SIMULATOR
-    RTCCameraVideoCapturer *videoCapturer = [[RTCCameraVideoCapturer alloc] initWithDelegate:videoSource];
-    VideoCaptureController *videoCaptureController =
-        [[VideoCaptureController alloc] initWithCapturer:videoCapturer andConstraints:constraints[@"video"]];
-    videoTrack.captureController = videoCaptureController;
-    [videoCaptureController startCapture];
+  NSDictionary *videoContraints = constraints[@"video"];
+
+  RTCCameraVideoCapturer *videoCapturer;
+
+  RCTLog(@"Video constraint in create video track: %@", videoContraints);
+  self.videoSourceInterceptor = [[WebRTCVideoCaptureHandler alloc] initWithSource:videoSource backgroundImageData:nil];
+  videoCapturer = [[RTCCameraVideoCapturer alloc] initWithDelegate:self.videoSourceInterceptor];
+
+  self.videoCaptureController = [[VideoCaptureController alloc] initWithCapturer:videoCapturer
+                                                                     videoSource:videoSource
+                                                                  andConstraints:videoContraints];
+  videoTrack.captureController = self.videoCaptureController;
+  [self.videoCaptureController startCapture];
 #endif
 
     return videoTrack;
@@ -188,6 +198,25 @@ RCT_EXPORT_METHOD(getDisplayMedia : (RCTPromiseResolveBlock)resolve rejecter : (
  * if audio permission was not granted, there will be no "audio" key in
  * the constraints dictionary.
  */
+
+RCT_EXPORT_METHOD(changeBackgroundEffect
+                  : (NSDictionary *)constraints successCallback
+                  : (RCTResponseSenderBlock)successCallback errorCallback
+                  : (RCTResponseSenderBlock)errorCallback) {
+//   If virtual backround is enabled, use video source interceptor before video source
+  if (constraints[@"enableBlurBackgroud"]) {
+    [self.videoSourceInterceptor enableWithBlur:YES backgroundImageData:nil];
+  } else if (constraints[@"enableVirtualBackgroud"]) {
+    NSDictionary* imageData = constraints[@"backgroundImageBase64"];
+    NSData* dataEncoded = [[NSData alloc] initWithBase64EncodedString: imageData options: 0];
+    [self.videoSourceInterceptor enableWithBlur:NO backgroundImageData:dataEncoded];
+  } else {
+    [self.videoSourceInterceptor enableWithBlur:NO backgroundImageData:nil];
+  }
+
+  successCallback(@[]);
+}
+
 RCT_EXPORT_METHOD(getUserMedia
                   : (NSDictionary *)constraints successCallback
                   : (RCTResponseSenderBlock)successCallback errorCallback
@@ -202,8 +231,9 @@ RCT_EXPORT_METHOD(getUserMedia
     if (constraints[@"audio"]) {
         audioTrack = [self createAudioTrack:constraints];
     }
+
     if (constraints[@"video"]) {
-        videoTrack = [self createVideoTrack:constraints];
+      videoTrack = [self createVideoTrack:constraints];
     }
 
     if (audioTrack == nil && videoTrack == nil) {
@@ -288,7 +318,7 @@ RCT_EXPORT_METHOD(enumerateDevices : (RCTResponseSenderBlock)callback) {
         if (device.localizedName != nil) {
             label = device.localizedName;
         }
-        
+
         [devices addObject:@{
             @"facing" : position,
             @"deviceId" : device.uniqueID,
@@ -379,8 +409,12 @@ RCT_EXPORT_METHOD(mediaStreamTrackRelease : (nonnull NSString *)trackID) {
     RTCMediaStreamTrack *track = self.localTracks[trackID];
     if (track) {
         track.isEnabled = NO;
-        [track.captureController stopCapture];
-        [self.localTracks removeObjectForKey:trackID];
+      [track.captureController stopCapture];
+      [self.localTracks removeObjectForKey:trackID];
+
+      if([track.kind isEqualToString:kRTCMediaStreamTrackKindVideo]) {
+        self.videoSourceInterceptor = nil;
+      }
     }
 #endif
 }

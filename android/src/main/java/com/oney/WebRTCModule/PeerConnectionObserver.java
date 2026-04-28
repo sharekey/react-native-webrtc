@@ -58,6 +58,10 @@ class PeerConnectionObserver implements PeerConnection.Observer {
         return peerConnection;
     }
 
+    int getId() {
+        return id;
+    }
+
     void setPeerConnection(PeerConnection peerConnection) {
         this.peerConnection = peerConnection;
     }
@@ -65,11 +69,23 @@ class PeerConnectionObserver implements PeerConnection.Observer {
     void close() {
         Log.d(TAG, "PeerConnection.close() for " + id);
 
-        peerConnection.close();
+        PeerConnection pc = peerConnection;
+        if (pc == null) {
+            return;
+        }
+
+        pc.close();
     }
 
     void dispose() {
         Log.d(TAG, "PeerConnection.dispose() for " + id);
+
+        PeerConnection pc = peerConnection;
+        if (pc == null) {
+            return;
+        }
+        // Make future calls observe disposal immediately.
+        peerConnection = null;
 
         // Remove video track adapters
         for (MediaStreamTrack track : this.remoteTracks.values()) {
@@ -87,7 +103,7 @@ class PeerConnectionObserver implements PeerConnection.Observer {
         // At this point there should be no local MediaStreams in the associated
         // PeerConnection. Call dispose() to free all remaining resources held
         // by the PeerConnection instance (RtpReceivers, RtpSenders, etc.)
-        peerConnection.dispose();
+        pc.dispose();
 
         remoteStreamIds.clear();
         remoteStreams.clear();
@@ -470,7 +486,9 @@ class PeerConnectionObserver implements PeerConnection.Observer {
      * semantics are specified. The transceiver will be disposed automatically.
      */
     @Override
-    public void onTrack(final RtpTransceiver transceiver) {}
+    public void onTrack(final RtpTransceiver transceiver) {
+        Log.w(TAG, "PeerConnection didStartReceivingOnTransceiver" + transceiver.getReceiver().id());
+    }
 
     /*
      * Triggered when a previously added remote track is removed by the remote

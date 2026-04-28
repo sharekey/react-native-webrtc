@@ -1,8 +1,11 @@
 import { EventTarget, Event, defineEventAttribute } from 'event-target-shim/index';
 import { NativeModules } from 'react-native';
 
+import type { BackgroundEffectConstraints } from './backgroundEffect';
+
 import getDisplayMedia from './getDisplayMedia';
 import getUserMedia, { Constraints } from './getUserMedia';
+import backgroundEffect from './backgroundEffect';
 
 const { WebRTCModule } = NativeModules;
 
@@ -39,6 +42,16 @@ class MediaDevices extends EventTarget<MediaDevicesEventMap> {
      */
     getUserMedia(constraints: Constraints) {
         return getUserMedia(constraints);
+    }
+
+    /**
+     * Change background effect for ios
+     *
+     * @param {*} constraints
+     * @returns {Promise}
+     */
+    backgroundEffect(constraints: BackgroundEffectConstraints) {
+        return backgroundEffect(constraints);
     }
 }
 

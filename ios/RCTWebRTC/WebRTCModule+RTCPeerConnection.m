@@ -20,9 +20,12 @@
 #import "WebRTCModule+RTCPeerConnection.h"
 #import "WebRTCModule+VideoTrackAdapter.h"
 #import "WebRTCModule.h"
+#import "WebRTCAudioSession.h"
+
+#import "react_native_webrtc-Swift.h"
+
 
 @implementation RTCPeerConnection (React)
-
 - (NSMutableDictionary<NSString *, DataChannelWrapper *> *)dataChannels {
     return objc_getAssociatedObject(self, _cmd);
 }
@@ -97,9 +100,47 @@ RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(peerConnectionInit
         peerConnection.webRTCModule = self;
 
         self.peerConnections[objectID] = peerConnection;
+
+        [self checkAudioLevel];
     });
 
     return @(ret);
+}
+
+- (void)checkAudioLevel {
+  // Cancel prev observer
+  [(WebRTCVoiceHandler*)self.voiceHandler stopObserve];
+
+  if (self.peerConnections.count == 0) {
+    return;
+  }
+
+  self.voiceHandler = [[WebRTCVoiceHandler new]
+                       startObserveWithPeerConnections:self.peerConnections.allValues
+                       voiceClosure:^(RTCPeerConnection* peerConnection, BOOL outgoing, BOOL isSpeaking, double audioLevel) {
+
+    dispatch_async(self.workerQueue, ^{
+      if (outgoing) {
+        [self sendEventWithName:kEventPeerVoiceOutgoingStateChanged
+                           body:
+         @{
+           @"isSpeaking" : @(isSpeaking),
+           @"audioLevel" : @(audioLevel),
+           @"pcId" : peerConnection.reactTag
+          }
+        ];
+      } else {
+        [self sendEventWithName:kEventPeerVoiceIncomingStateChanged
+                           body:
+         @{
+           @"isSpeaking" : @(isSpeaking),
+           @"audioLevel" : @(audioLevel),
+           @"pcId" : peerConnection.reactTag
+          }
+        ];
+      }
+    });
+  }];
 }
 
 RCT_EXPORT_METHOD(peerConnectionSetConfiguration
@@ -309,13 +350,23 @@ RCT_EXPORT_METHOD(peerConnectionAddICECandidate
     [peerConnection addIceCandidate:candidate completionHandler:handler];
 }
 
-RCT_EXPORT_METHOD(peerConnectionClose : (nonnull NSNumber *)objectID) {
+RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(peerConnectionClose : (nonnull NSNumber *)objectID) {
+    CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
+
     RTCPeerConnection *peerConnection = self.peerConnections[objectID];
     if (!peerConnection) {
-        return;
+        return nil;
     }
 
     [peerConnection close];
+
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"dev_menu_logs" object:@{
+      @"append": @YES,
+      @"log": [NSString stringWithFormat:@"peerConnectionClose: time %.3f ms", (CFAbsoluteTimeGetCurrent() - start) * 1000],
+      @"key": @"Call End Time Elapsed"
+    }];
+
+  return nil;
 }
 
 RCT_EXPORT_METHOD(peerConnectionDispose : (nonnull NSNumber *)objectID) {
@@ -346,6 +397,12 @@ RCT_EXPORT_METHOD(peerConnectionDispose : (nonnull NSNumber *)objectID) {
     [dataChannels removeAllObjects];
 
     [self.peerConnections removeObjectForKey:objectID];
+
+    if (self.peerConnections.count == 0) {
+      [(WebRTCVoiceHandler*)self.voiceHandler stopObserve];
+    } else {
+      [self checkAudioLevel];
+    }
 }
 
 RCT_EXPORT_METHOD(peerConnectionGetStats
@@ -660,8 +717,6 @@ RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(peerConnectionRemoveTrack
             NSString *jsonString = [[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding];
             [s appendString:jsonString];
         }
-    } else if ([statisticsValue isKindOfClass:[NSNumber class]]) {
-        [s appendString:[NSString stringWithFormat:@"%@", statisticsValue]];
     } else {
         [s appendString:@"\""];
         [s appendString:[NSString stringWithFormat:@"%@", statisticsValue]];
@@ -853,7 +908,10 @@ RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(peerConnectionRemoveTrack
         didAddReceiver:(RTC_OBJC_TYPE(RTCRtpReceiver) *)rtpReceiver
                streams:(NSArray<RTC_OBJC_TYPE(RTCMediaStream) *> *)mediaStreams {
     dispatch_async(self.workerQueue, ^{
+        RCTLogWarn(@"PeerConnection %@ didAddReceiver %@", peerConnection.reactTag, rtpReceiver.receiverId);
+
         RTCRtpTransceiver *transceiver = nil;
+
         for (RTCRtpTransceiver *t in peerConnection.transceivers) {
             if ([rtpReceiver.receiverId isEqual:t.receiver.receiverId]) {
                 transceiver = t;
@@ -868,24 +926,31 @@ RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(peerConnectionRemoveTrack
 
         RTCMediaStreamTrack *track = rtpReceiver.track;
 
-        // We need to fire this event for an existing track sometimes, like
-        // when the transceiver direction (on the sending side) switches from
-        // sendrecv to recvonly and then back.
-        BOOL existingTrack = peerConnection.remoteTracks[track.trackId] != nil;
-
-        if (!existingTrack) {
-            if (track.kind == kRTCMediaStreamTrackKindVideo) {
-                RTCVideoTrack *videoTrack = (RTCVideoTrack *)track;
-                [peerConnection addVideoTrackAdapter:videoTrack];
-            }
-
-            peerConnection.remoteTracks[track.trackId] = track;
+        if (track.kind == kRTCMediaStreamTrackKindVideo) {
+            RTCVideoTrack *videoTrack = (RTCVideoTrack *)track;
+            [peerConnection addVideoTrackAdapter:videoTrack];
         }
 
-        NSMutableDictionary *params = [NSMutableDictionary new];
-        NSMutableArray *streams = [NSMutableArray new];
+        peerConnection.remoteTracks[track.trackId] = track;
 
-        for (RTCMediaStream *stream in mediaStreams) {
+        NSMutableArray *streams = [NSMutableArray new];
+        NSMutableDictionary *params = [NSMutableDictionary new];
+
+
+//        NSLog(@"TEST: Remote tracks: ");
+//        for (NSString * key in [peerConnection.remoteTracks allKeys]) {
+//            NSLog(@"TEST: Remote trackId: %@", key);
+//        }
+//
+//        NSLog(@"TEST: Remote streams: ");
+//        for (NSString * key in [peerConnection.remoteStreams allKeys]) {
+//            NSLog(@"TEST: Remote stream for key: %@", key);
+//            RTCMediaStream* remoteStream = [peerConnection.remoteStreams objectForKey:key];
+//            NSLog(@"TEST: stream: %@", remoteStream);
+//        }
+
+        for (RTCMediaStream * stream in mediaStreams) {
+          //  NSLog(@"TEST: Coming stream: %@", stream);
             NSString *streamReactTag = nil;
 
             for (NSString *key in [peerConnection.remoteStreams allKeys]) {
@@ -937,11 +1002,13 @@ RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(peerConnectionRemoveTrack
 }
 
 - (void)peerConnection:(nonnull RTCPeerConnection *)peerConnection didAddStream:(nonnull RTCMediaStream *)stream {
-    // Unused in Unified Plan.
+    RCTLogWarn(@"PeerConnection %@ didAddStream %@", peerConnection.reactTag, stream.streamId);
 }
 
 - (void)peerConnection:(nonnull RTCPeerConnection *)peerConnection didRemoveStream:(nonnull RTCMediaStream *)stream {
-    // Unused in Unified Plan.
+    RCTLogWarn(@"PeerConnection %@ didRemoveStream %@", peerConnection.reactTag, stream.streamId);
 }
+
+
 
 @end

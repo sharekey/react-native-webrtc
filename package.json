@@ -1,6 +1,6 @@
 {
   "name": "react-native-webrtc",
-  "version": "124.0.4",
+  "version": "124.0.6",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/react-native-webrtc/react-native-webrtc.git"
@@ -38,15 +38,15 @@
   },
   "devDependencies": {
     "@types/debug": "4.1.7",
-    "@types/react": "17.0.40",
-    "@types/react-native": "0.67.3",
     "@typescript-eslint/eslint-plugin": "^5.39.0",
     "@typescript-eslint/parser": "^5.39.0",
     "eslint": "^8.24.0",
     "eslint-plugin-import": "^2.26.0",
-    "husky": "7.0.2",
+    "husky": "^7.0.2",
     "lint-staged": "11.2.3",
     "prettier": "2.4.1",
+    "@types/react": "^18.0.25",
+    "@types/react-native": "^0.70.6",
     "react-native-builder-bob": "0.18.2",
     "typescript": "4.6.2"
   },

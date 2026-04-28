@@ -1,8 +1,13 @@
 package com.oney.WebRTCModule;
 
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkRequest;
 import android.util.Log;
 import android.util.Pair;
 import android.util.SparseArray;
+import android.util.SparseBooleanArray;
+import android.util.SparseIntArray;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -11,6 +16,7 @@ import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.Callback;
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
+import com.facebook.react.bridge.ReactContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.ReadableArray;
@@ -33,8 +39,51 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+
+interface OnValueChangeListener {
+    void onValueChanged(PeerConnectionObserver peerConnection, boolean isSpeaking, double audioLevel);
+}
+
+class AudioLevelValueHolder {
+    private OnValueChangeListener listener;
+    SparseBooleanArray storedPeerConnections = new SparseBooleanArray();
+
+    void setOnValueChangeListener(OnValueChangeListener listener) {
+        this.listener = listener;
+    }
+
+    void setValue(PeerConnectionObserver peerConnection, boolean isSpeaking, double audioLevel) {
+        int id = peerConnection.getId();
+        if (this.storedPeerConnections.indexOfKey(id) >= 0) {
+            boolean isSpeak = this.storedPeerConnections.get(id);
+
+            if (isSpeak != isSpeaking) {
+                this.storedPeerConnections.put(id, isSpeaking);
+
+                if (listener != null) {
+                    listener.onValueChanged(peerConnection, isSpeaking, audioLevel);
+                }
+            }
+        } else {
+            this.storedPeerConnections.put(id, isSpeaking);
+
+            if (listener != null) {
+                listener.onValueChanged(peerConnection, isSpeaking, audioLevel);
+            }
+        }
+    }
+
+    void cleanup() {
+        this.storedPeerConnections.clear();
+    }
+}
 
 @ReactModule(name = "WebRTCModule")
 public class WebRTCModule extends ReactContextBaseJavaModule {
@@ -49,6 +98,16 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
     private final SparseArray<PeerConnectionObserver> mPeerConnectionObservers;
     final Map<String, MediaStream> localStreams;
 
+    static Timer voiceTimer;
+    boolean isVoiceTimerRunning = false;
+
+    AudioLevelValueHolder incomingAudioLevelHolder;
+    AudioLevelValueHolder outgoingAudioLevelHolder;
+
+    private final AtomicInteger voicePollGeneration = new AtomicInteger(0);
+    private final AtomicReference<Future<?>> voicePollTaskRef = new AtomicReference<>(null);
+
+
     private final GetUserMediaImpl getUserMediaImpl;
 
     public WebRTCModule(ReactApplicationContext reactContext) {
@@ -56,6 +115,35 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
 
         mPeerConnectionObservers = new SparseArray<>();
         localStreams = new HashMap<>();
+
+        incomingAudioLevelHolder = new AudioLevelValueHolder();
+        outgoingAudioLevelHolder = new AudioLevelValueHolder();
+
+        incomingAudioLevelHolder.setOnValueChangeListener(new OnValueChangeListener() {
+            @Override
+            public void onValueChanged(PeerConnectionObserver peerConnection, boolean isSpeaking, double audioLevel) {
+                ThreadUtils.runOnExecutor(() -> {
+                    WritableMap params = Arguments.createMap();
+                    params.putBoolean("isSpeaking", isSpeaking);
+                    params.putDouble("audioLevel", audioLevel);
+
+                    params.putInt("pcId", peerConnection.getId());
+                    sendEvent("peerVoiceIncomingStateChanged", params);
+                });
+            }
+        });
+
+        outgoingAudioLevelHolder.setOnValueChangeListener(new OnValueChangeListener() {
+            @Override
+            public void onValueChanged(PeerConnectionObserver peerConnection, boolean isSpeaking, double audioLevel) {
+                WritableMap params = Arguments.createMap();
+                params.putBoolean("isSpeaking", isSpeaking);
+                params.putDouble("audioLevel", audioLevel);
+
+                params.putInt("pcId", peerConnection.getId());
+                sendEvent("peerVoiceOutgoingStateChanged", params);
+            }
+        });
 
         WebRTCModuleOptions options = WebRTCModuleOptions.getInstance();
 
@@ -111,6 +199,25 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
         mAudioDeviceModule = adm;
 
         getUserMediaImpl = new GetUserMediaImpl(this, reactContext);
+
+        observeReconnection(reactContext);
+    }
+
+    private void observeReconnection(ReactContext reactContext) {
+        ConnectivityManager connectivityManager =
+                (ConnectivityManager) reactContext.getSystemService(reactContext.CONNECTIVITY_SERVICE);
+        NetworkRequest networkRequest = new NetworkRequest.Builder().build();
+
+        connectivityManager.registerNetworkCallback(networkRequest, new ConnectivityManager.NetworkCallback() {
+            @Override
+            public void onAvailable(Network network) {
+                super.onAvailable(network);
+                for (int i = 0, size = mPeerConnectionObservers.size(); i < size; i++) {
+                    PeerConnectionObserver pco = mPeerConnectionObservers.valueAt(i);
+                    pco.getPeerConnection().restartIce();
+                }
+            }
+        });
     }
 
     @NonNull
@@ -182,7 +289,8 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
 
         PeerConnection.RTCConfiguration conf = new PeerConnection.RTCConfiguration(iceServers);
         conf.sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN;
-
+        conf.continualGatheringPolicy = PeerConnection.ContinualGatheringPolicy.GATHER_CONTINUALLY;
+        conf.candidateNetworkPolicy = PeerConnection.CandidateNetworkPolicy.ALL;
         // Required for perfect negotiation.
         conf.enableImplicitRollback = true;
 
@@ -376,6 +484,7 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
     public boolean peerConnectionInit(ReadableMap configuration, int id) {
         PeerConnection.RTCConfiguration rtcConfiguration = parseRTCConfiguration(configuration);
 
+        observeVoiceActivity();
         try {
             return (boolean) ThreadUtils
                     .submitToExecutor(() -> {
@@ -386,6 +495,7 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
                         }
                         observer.setPeerConnection(peerConnection);
                         mPeerConnectionObservers.put(id, observer);
+
                         return true;
                     })
                     .get();
@@ -393,6 +503,155 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
             e.printStackTrace();
             throw new RuntimeException(e);
         }
+    }
+
+    void cancelVoiceActivity() {
+        // Invalidate all queued/running poll tasks from previous timer cycle.
+        voicePollGeneration.incrementAndGet();
+
+        Future<?> pending = voicePollTaskRef.getAndSet(null);
+        if (pending != null) {
+            pending.cancel(false);
+        }
+
+        if (WebRTCModule.voiceTimer != null) {
+            WebRTCModule.voiceTimer.cancel();
+            WebRTCModule.voiceTimer.purge();
+            WebRTCModule.voiceTimer = null;
+        }
+
+        incomingAudioLevelHolder.cleanup();
+        outgoingAudioLevelHolder.cleanup();
+    }
+
+
+    void observeVoiceActivity() {
+        int checkInterval = 300;
+
+        final SparseIntArray silenceIncomingCount = new SparseIntArray();
+        final double[] silenceOutgoingCount = {0};
+
+        for (int i = 0; i < mPeerConnectionObservers.size(); i++) {
+            int key = mPeerConnectionObservers.keyAt(i);
+            PeerConnectionObserver peer = mPeerConnectionObservers.get(key);
+            if (peer != null) {
+                silenceIncomingCount.put(peer.getId(), 0);
+            }
+        }
+
+        cancelVoiceActivity();
+        final int generation = voicePollGeneration.incrementAndGet();
+
+        WebRTCModule.voiceTimer = new Timer();
+        WebRTCModule.voiceTimer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                if (voicePollGeneration.get() != generation) {
+                    return;
+                }
+
+                Future<?> current = voicePollTaskRef.get();
+                if (current != null && !current.isDone()) {
+                    return; // previous tick still queued/running
+                }
+
+                Future<?> next = ThreadUtils.submitToExecutor(() -> {
+                    if (voicePollGeneration.get() != generation) {
+                        return;
+                    }
+
+                    for (int i = 0; i < mPeerConnectionObservers.size(); i++) {
+                        int key = mPeerConnectionObservers.keyAt(i);
+                        PeerConnectionObserver peer = mPeerConnectionObservers.get(key);
+                        if (peer == null) {
+                            continue;
+                        }
+
+                        PeerConnection peerConnection = peer.getPeerConnection();
+                        if (peerConnection == null) {
+                            continue;
+                        }
+
+                        int id = peer.getId();
+
+                        if (peerConnection.connectionState() == PeerConnection.PeerConnectionState.CONNECTED) {
+                            peerConnection.getStats(new RTCStatsCollectorCallback() {
+                                @Override
+                                public void onStatsDelivered(RTCStatsReport rtcStatsReport) {
+                                    for (RTCStats stats : rtcStatsReport.getStatsMap().values()) {
+                                        if (stats.getType().equals("inbound-rtp")) {
+                                            Object audioLevelObject = stats.getMembers().get("audioLevel");
+
+                                            if (audioLevelObject instanceof Double) {
+                                                Double audioLevel = ((Double) audioLevelObject);
+
+                                                if (audioLevel > 0.025) {
+                                                    silenceIncomingCount.put(id, 0);
+                                                    incomingAudioLevelHolder.setValue(peer, true, audioLevel.doubleValue());
+                                                } else {
+                                                    silenceIncomingCount.put(id, silenceIncomingCount.get(id) + 1);
+
+                                                    if (silenceIncomingCount.get(id) > 4.0) {
+                                                        incomingAudioLevelHolder.setValue(peer, false, 0);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            });
+                        }
+                    }
+
+                    for (int i = 0; i < mPeerConnectionObservers.size(); i++) {
+                        int key = mPeerConnectionObservers.keyAt(i);
+                        PeerConnectionObserver peer = mPeerConnectionObservers.get(key);
+                        if (peer == null) {
+                            continue;
+                        }
+
+                        PeerConnection peerConnection = peer.getPeerConnection();
+                        if (peerConnection == null) {
+                            continue;
+                        }
+
+                        if (peerConnection.connectionState() == PeerConnection.PeerConnectionState.CONNECTED) {
+                            peerConnection.getStats(new RTCStatsCollectorCallback() {
+                                @Override
+                                public void onStatsDelivered(RTCStatsReport rtcStatsReport) {
+                                    for (RTCStats stats : rtcStatsReport.getStatsMap().values()) {
+                                        if (stats.getType().equals("media-source")) {
+                                            Object audioLevelObject = stats.getMembers().get("audioLevel");
+
+                                            if (audioLevelObject instanceof Double) {
+                                                Double audioLevel = ((Double) audioLevelObject);
+
+                                                if (audioLevel > 0.01) {
+                                                    silenceOutgoingCount[0] = 0;
+                                                    outgoingAudioLevelHolder.setValue(peer, true, audioLevel.doubleValue());
+                                                } else {
+                                                    silenceOutgoingCount[0] += 1;
+
+                                                    if (silenceOutgoingCount[0] > 4.0) {
+                                                        outgoingAudioLevelHolder.setValue(peer, false, 0);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            });
+
+                            return;
+                        }
+                    }
+                });
+
+                voicePollTaskRef.set(next);
+            }
+        }, 0, checkInterval);
+
+        isVoiceTimerRunning = true;
     }
 
     MediaStream getStreamForReactTag(String streamReactTag) {
@@ -443,7 +702,7 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
     }
 
     public VideoTrack createVideoTrack(AbstractVideoCaptureController videoCaptureController) {
-        return getUserMediaImpl.createVideoTrack(videoCaptureController);
+        return getUserMediaImpl.createVideoTrack(videoCaptureController, false, false, "");
     }
 
     public void createStream(
@@ -705,7 +964,7 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
         });
     }
 
-    @ReactMethod(isBlockingSynchronousMethod = true)
+    @ReactMethod
     public void transceiverSetCodecPreferences(int id, String senderId, ReadableArray codecPreferences) {
         ThreadUtils.runOnExecutor(() -> {
             WritableMap identifier = Arguments.createMap();
@@ -1281,7 +1540,7 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
                 candidateMap.hasKey("sdpMid") && !candidateMap.isNull("sdpMid") ? candidateMap.getString("sdpMid")  : "",
                 candidateMap.hasKey("sdpMLineIndex") && !candidateMap.isNull("sdpMLineIndex")  ? candidateMap.getInt("sdpMLineIndex") : 0,
                 candidateMap.getString("candidate"));
-            
+
             peerConnection.addIceCandidate(candidate, new AddIceObserver() {
                 @Override
                 public void onAddSuccess() {
@@ -1334,8 +1593,16 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
             if (pco == null || pco.getPeerConnection() == null) {
                 Log.d(TAG, "peerConnectionDispose() peerConnection is null");
             }
-            pco.dispose();
+
+            if (pco != null) {
+                pco.dispose();
+            }
+
             mPeerConnectionObservers.remove(id);
+
+            if (mPeerConnectionObservers.size() == 0) {
+                cancelVoiceActivity();
+            }
         });
     }
 

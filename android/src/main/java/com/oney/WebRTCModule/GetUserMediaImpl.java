@@ -4,6 +4,8 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.media.projection.MediaProjectionManager;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import androidx.core.util.Consumer;
@@ -195,7 +197,7 @@ class GetUserMediaImpl {
             CameraCaptureController cameraCaptureController =
                     new CameraCaptureController(reactContext.getCurrentActivity(), getCameraEnumerator(), videoConstraintsMap);
 
-            videoTrack = createVideoTrack(cameraCaptureController);
+            videoTrack = createVideoTrack(cameraCaptureController, videoConstraintsMap.hasKey("enableVirtualBackgroud"), videoConstraintsMap.hasKey("enableBlurBackgroud"), videoConstraintsMap.getString("backgroundImageBase64"));
         }
 
         if (audioTrack == null && videoTrack == null) {
@@ -362,12 +364,12 @@ class GetUserMediaImpl {
         DisplayMetrics displayMetrics = DisplayUtils.getDisplayMetrics(reactContext.getCurrentActivity());
         int width = displayMetrics.widthPixels;
         int height = displayMetrics.heightPixels;
-        ScreenCaptureController screenCaptureController = new ScreenCaptureController(
-                reactContext.getCurrentActivity(), width, height, mediaProjectionPermissionResultData);
-        return createVideoTrack(screenCaptureController);
+        ScreenCaptureController screenCaptureController
+            = new ScreenCaptureController(reactContext.getCurrentActivity(), width, height, mediaProjectionPermissionResultData);
+        return createVideoTrack(screenCaptureController, null, false, "");
     }
 
-    VideoTrack createVideoTrack(AbstractVideoCaptureController videoCaptureController) {
+    VideoTrack createVideoTrack(AbstractVideoCaptureController videoCaptureController, Boolean enableVirtualBackgroud, Boolean enableBlurBackgroud, String backgroundImageBase64) {
         videoCaptureController.initializeVideoCapturer();
 
         VideoCapturer videoCapturer = videoCaptureController.videoCapturer;
@@ -392,12 +394,19 @@ class GetUserMediaImpl {
         VideoSource videoSource = pcFactory.createVideoSource(videoCapturer.isScreencast());
         videoCapturer.initialize(surfaceTextureHelper, reactContext, videoSource.getCapturerObserver());
 
-        VideoTrack track = pcFactory.createVideoTrack(id, videoSource);
+        if (enableVirtualBackgroud || enableBlurBackgroud) {
+            VideoProcessor p = new VirtualBackgroundVideoProcessor(reactContext, surfaceTextureHelper, enableVirtualBackgroud, enableBlurBackgroud, backgroundImageBase64);
+            videoSource.setVideoProcessor(p);
+        }
+
+        String videoTrackId = UUID.randomUUID().toString();
+        VideoTrack track = pcFactory.createVideoTrack(videoTrackId, videoSource);
 
         track.setEnabled(true);
-        tracks.put(id, new TrackPrivate(track, videoSource, videoCaptureController, surfaceTextureHelper));
-
-        videoCaptureController.startCapture();
+        tracks.put(videoTrackId, new TrackPrivate(track, videoSource, videoCaptureController, surfaceTextureHelper));
+        
+        // Delay fix issue with app freezing on fold devices
+        new Handler(Looper.getMainLooper()).postDelayed(videoCaptureController::startCapture, 250);
 
         return track;
     }
