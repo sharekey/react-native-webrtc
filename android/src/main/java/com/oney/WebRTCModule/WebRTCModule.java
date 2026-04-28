@@ -43,6 +43,9 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 interface OnValueChangeListener {
     void onValueChanged(PeerConnectionObserver peerConnection, boolean isSpeaking, double audioLevel);
@@ -100,6 +103,10 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
 
     AudioLevelValueHolder incomingAudioLevelHolder;
     AudioLevelValueHolder outgoingAudioLevelHolder;
+
+    private final AtomicInteger voicePollGeneration = new AtomicInteger(0);
+    private final AtomicReference<Future<?>> voicePollTaskRef = new AtomicReference<>(null);
+
 
     private final GetUserMediaImpl getUserMediaImpl;
 
@@ -499,6 +506,14 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
     }
 
     void cancelVoiceActivity() {
+        // Invalidate all queued/running poll tasks from previous timer cycle.
+        voicePollGeneration.incrementAndGet();
+
+        Future<?> pending = voicePollTaskRef.getAndSet(null);
+        if (pending != null) {
+            pending.cancel(false);
+        }
+
         if (WebRTCModule.voiceTimer != null) {
             WebRTCModule.voiceTimer.cancel();
             WebRTCModule.voiceTimer.purge();
@@ -509,6 +524,7 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
         outgoingAudioLevelHolder.cleanup();
     }
 
+
     void observeVoiceActivity() {
         int checkInterval = 300;
 
@@ -518,85 +534,120 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
         for (int i = 0; i < mPeerConnectionObservers.size(); i++) {
             int key = mPeerConnectionObservers.keyAt(i);
             PeerConnectionObserver peer = mPeerConnectionObservers.get(key);
-            silenceIncomingCount.put(peer.getId(), 0);
+            if (peer != null) {
+                silenceIncomingCount.put(peer.getId(), 0);
+            }
         }
 
         cancelVoiceActivity();
+        final int generation = voicePollGeneration.incrementAndGet();
 
         WebRTCModule.voiceTimer = new Timer();
         WebRTCModule.voiceTimer.schedule(new TimerTask() {
             @Override
             public void run() {
-                for (int i = 0; i < mPeerConnectionObservers.size(); i++) {
-                    int key = mPeerConnectionObservers.keyAt(i);
-                    PeerConnectionObserver peer = mPeerConnectionObservers.get(key);
-                    int id = peer.getId();
-
-                    if (peer.getPeerConnection().connectionState() == PeerConnection.PeerConnectionState.CONNECTED) {
-                        peer.getPeerConnection().getStats(new RTCStatsCollectorCallback() {
-                            @Override
-                            public void onStatsDelivered(RTCStatsReport rtcStatsReport) {
-
-                                for (RTCStats stats : rtcStatsReport.getStatsMap().values()) {
-                                    if (stats.getType().equals("inbound-rtp")) {
-                                        Object audioLevelObject = stats.getMembers().get("audioLevel");
-
-                                        if (audioLevelObject instanceof Double) {
-                                            Double audioLevel = ((Double) audioLevelObject);
-
-                                            if (audioLevel > 0.025) {
-                                                silenceIncomingCount.put(id, 0);
-                                                incomingAudioLevelHolder.setValue(peer, true, audioLevel.doubleValue());
-                                            } else {
-                                                silenceIncomingCount.put(id, silenceIncomingCount.get(id) + 1);
-
-                                                if (silenceIncomingCount.get(id) > 4.0) {
-                                                    incomingAudioLevelHolder.setValue(peer, false, 0);
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        });
-                    }
+                if (voicePollGeneration.get() != generation) {
+                    return;
                 }
 
-                for (int i = 0; i < mPeerConnectionObservers.size(); i++) {
-                    int key = mPeerConnectionObservers.keyAt(i);
-                    PeerConnectionObserver peer = mPeerConnectionObservers.get(key);
+                Future<?> current = voicePollTaskRef.get();
+                if (current != null && !current.isDone()) {
+                    return; // previous tick still queued/running
+                }
 
-                    if (peer.getPeerConnection().connectionState() == PeerConnection.PeerConnectionState.CONNECTED) {
-                        peer.getPeerConnection().getStats(new RTCStatsCollectorCallback() {
-                            @Override
-                            public void onStatsDelivered(RTCStatsReport rtcStatsReport) {
-
-                                for (RTCStats stats : rtcStatsReport.getStatsMap().values()) {
-                                    if (stats.getType().equals("media-source")) {
-                                        Object audioLevelObject = stats.getMembers().get("audioLevel");
-
-                                        if (audioLevelObject instanceof Double) {
-                                            Double audioLevel = ((Double) audioLevelObject);
-
-                                            if (audioLevel > 0.01) {
-                                                silenceOutgoingCount[0] = 0;
-                                                outgoingAudioLevelHolder.setValue(peer, true, audioLevel.doubleValue());
-                                            } else {
-                                                silenceOutgoingCount[0] += 1;
-
-                                                if (silenceOutgoingCount[0] > 4.0) {
-                                                    outgoingAudioLevelHolder.setValue(peer, false, 0);
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        });
-
+                Future<?> next = ThreadUtils.submitToExecutor(() -> {
+                    if (voicePollGeneration.get() != generation) {
                         return;
                     }
-                }
+
+                    for (int i = 0; i < mPeerConnectionObservers.size(); i++) {
+                        int key = mPeerConnectionObservers.keyAt(i);
+                        PeerConnectionObserver peer = mPeerConnectionObservers.get(key);
+                        if (peer == null) {
+                            continue;
+                        }
+
+                        PeerConnection peerConnection = peer.getPeerConnection();
+                        if (peerConnection == null) {
+                            continue;
+                        }
+
+                        int id = peer.getId();
+
+                        if (peerConnection.connectionState() == PeerConnection.PeerConnectionState.CONNECTED) {
+                            peerConnection.getStats(new RTCStatsCollectorCallback() {
+                                @Override
+                                public void onStatsDelivered(RTCStatsReport rtcStatsReport) {
+                                    for (RTCStats stats : rtcStatsReport.getStatsMap().values()) {
+                                        if (stats.getType().equals("inbound-rtp")) {
+                                            Object audioLevelObject = stats.getMembers().get("audioLevel");
+
+                                            if (audioLevelObject instanceof Double) {
+                                                Double audioLevel = ((Double) audioLevelObject);
+
+                                                if (audioLevel > 0.025) {
+                                                    silenceIncomingCount.put(id, 0);
+                                                    incomingAudioLevelHolder.setValue(peer, true, audioLevel.doubleValue());
+                                                } else {
+                                                    silenceIncomingCount.put(id, silenceIncomingCount.get(id) + 1);
+
+                                                    if (silenceIncomingCount.get(id) > 4.0) {
+                                                        incomingAudioLevelHolder.setValue(peer, false, 0);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            });
+                        }
+                    }
+
+                    for (int i = 0; i < mPeerConnectionObservers.size(); i++) {
+                        int key = mPeerConnectionObservers.keyAt(i);
+                        PeerConnectionObserver peer = mPeerConnectionObservers.get(key);
+                        if (peer == null) {
+                            continue;
+                        }
+
+                        PeerConnection peerConnection = peer.getPeerConnection();
+                        if (peerConnection == null) {
+                            continue;
+                        }
+
+                        if (peerConnection.connectionState() == PeerConnection.PeerConnectionState.CONNECTED) {
+                            peerConnection.getStats(new RTCStatsCollectorCallback() {
+                                @Override
+                                public void onStatsDelivered(RTCStatsReport rtcStatsReport) {
+                                    for (RTCStats stats : rtcStatsReport.getStatsMap().values()) {
+                                        if (stats.getType().equals("media-source")) {
+                                            Object audioLevelObject = stats.getMembers().get("audioLevel");
+
+                                            if (audioLevelObject instanceof Double) {
+                                                Double audioLevel = ((Double) audioLevelObject);
+
+                                                if (audioLevel > 0.01) {
+                                                    silenceOutgoingCount[0] = 0;
+                                                    outgoingAudioLevelHolder.setValue(peer, true, audioLevel.doubleValue());
+                                                } else {
+                                                    silenceOutgoingCount[0] += 1;
+
+                                                    if (silenceOutgoingCount[0] > 4.0) {
+                                                        outgoingAudioLevelHolder.setValue(peer, false, 0);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            });
+
+                            return;
+                        }
+                    }
+                });
+
+                voicePollTaskRef.set(next);
             }
         }, 0, checkInterval);
 
@@ -1542,7 +1593,11 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
             if (pco == null || pco.getPeerConnection() == null) {
                 Log.d(TAG, "peerConnectionDispose() peerConnection is null");
             }
-            pco.dispose();
+
+            if (pco != null) {
+                pco.dispose();
+            }
+
             mPeerConnectionObservers.remove(id);
 
             if (mPeerConnectionObservers.size() == 0) {
