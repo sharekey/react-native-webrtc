@@ -126,213 +126,97 @@ final public class WebRTCVoiceHandler: NSObject {
 }
 
 final public class WebRTCVideoCaptureHandler: NSObject, RTCVideoCapturerDelegate {
-  var selectedFilter: VideoFilter?
-
-  private lazy var serialActor = SerialActor()
-
   private let source: RTCVideoCapturerDelegate
-  private let context: CIContext
-  private let colorSpace: CGColorSpace
-  private var frameCount: Int = 0
-  private var fpsInterval: Int64 = 1000000000 / 15
-  private let handleRotation: Bool
-  private var sceneOrientation: StreamDeviceOrientation = .portrait(isUpsideDown: false)
-  private var latestTimestampNs: Int64 = 0
-  private var currentCameraPosition: AVCaptureDevice.Position = .front
-  private var lastProcessedTimestamp: Int64 = 0
-  private var orientationCancellable: AnyCancellable?
+  private let context = CIContext(options: [.useSoftwareRenderer: false])
+  private let colorSpace = CGColorSpaceCreateDeviceRGB()
+  private let processingQueue = DispatchQueue(label: "com.sharekey.webrtc.background-effect", qos: .userInitiated)
+  private let frameGate = CaptureFrameGate()
+  private let filterLock = NSLock()
+  private var selectedFilter: VideoFilter?
+  private var pixelBufferPool: CVPixelBufferPool?
+  private var poolWidth = 0
+  private var poolHeight = 0
 
   @objc
   public init(source: RTCVideoCapturerDelegate, backgroundImageData: Data?) {
     self.source = source
-    self.context = CIContext(options: [CIContextOption.useSoftwareRenderer: false])
-    self.colorSpace = CGColorSpaceCreateDeviceRGB()
-    self.handleRotation = false
-
     super.init()
-
-    NotificationCenter.default.addObserver(self,
-                                           selector: #selector(orientationChanged),
-                                           name: UIDevice.orientationDidChangeNotification, object: nil)
-  }
-
-  deinit {
-    NotificationCenter.default.removeObserver(self)
-  }
-
-  @objc func orientationChanged() {
-    self.sceneOrientation = {
-    #if canImport(UIKit)
-        if let window = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-          switch window.interfaceOrientation {
-          case .unknown, .portrait:
-            return .portrait(isUpsideDown: false)
-          case .portraitUpsideDown:
-            return .portrait(isUpsideDown: true)
-          case .landscapeLeft:
-            return .landscape(isLeft: true)
-          case .landscapeRight:
-            return .landscape(isLeft: false)
-          @unknown default:
-            return .portrait(isUpsideDown: false)
-          }
-        } else {
-          return .portrait(isUpsideDown: false)
-        }
-    #else
-        return .portrait(isUpsideDown: false)
-    #endif
-    }()
+    enable(blur: false, backgroundImageData: backgroundImageData)
   }
 
   @objc
   public func enable(blur: Bool, backgroundImageData: Data?) {
-    if let data = backgroundImageData, let backgroundImage: CIImage = CIImage(data: data) {
-      selectedFilter = .imageBackground(backgroundImage)
-    } else if blur {
-      selectedFilter = .blurredBackground
+    let filter: VideoFilter?
+    if let data = backgroundImageData, let image = CIImage(data: data) {
+      filter = .imageBackground(image)
     } else {
-      selectedFilter = nil
+      filter = blur ? .blurredBackground : nil
     }
+    filterLock.lock()
+    selectedFilter = filter
+    filterLock.unlock()
   }
-
 
   public func capturer(_ capturer: RTCVideoCapturer, didCapture frame: RTCVideoFrame) {
-    let currentTimestamp = frame.timeStampNs
-    let elapsedTimeSinceLastProcessedFrame = currentTimestamp - lastProcessedTimestamp
+    filterLock.lock()
+    let filter = selectedFilter
+    filterLock.unlock()
 
-    if elapsedTimeSinceLastProcessedFrame < fpsInterval {
-      return
-    }
+    guard frameGate.tryBegin(
+      timestampNs: frame.timeStampNs,
+      minimumIntervalNs: filter == nil ? 0 : CaptureFrameGate.effectFrameIntervalNs
+    ) else { return }
 
-    Task { [serialActor, weak self] in
-      do {
-        try await serialActor.execute { [weak self] in
-          guard let self else { return }
-
-          var _buffer: RTCCVPixelBuffer?
-
-          if self.selectedFilter != nil, let buffer: RTCCVPixelBuffer = frame.buffer as? RTCCVPixelBuffer {
-            _buffer = buffer
-            let imageBuffer = buffer.pixelBuffer
-            CVPixelBufferLockBaseAddress(imageBuffer, .readOnly)
-            let inputImage = CIImage(cvPixelBuffer: imageBuffer, options: [CIImageOption.colorSpace: self.colorSpace])
-            let outputImage = await self.filter(image: inputImage, pixelBuffer: imageBuffer)
-            CVPixelBufferUnlockBaseAddress(imageBuffer, .readOnly)
-            self.context.render(outputImage, to: imageBuffer, bounds: outputImage.extent, colorSpace: self.colorSpace)
-          }
-
-          let updatedFrame = self.handleRotation
-          ? self.adjustRotation(capturer, for: _buffer, frame: frame)
-          : frame
-
-          self.lastProcessedTimestamp = currentTimestamp
-
-          if updatedFrame.timeStampNs <= self.latestTimestampNs {
-            return
-          }
-
-          self.latestTimestampNs = updatedFrame.timeStampNs
-          self.source.capturer(capturer, didCapture: updatedFrame)
-        }
-      } catch {
-        print(error)
+    processingQueue.async { [self] in
+      defer { frameGate.finish() }
+      autoreleasepool {
+        let output = filter.map { process(frame, filter: $0) } ?? frame
+        source.capturer(capturer, didCapture: output)
       }
     }
   }
 
-  private func adjustRotation(
-    _ capturer: RTCVideoCapturer,
-    for buffer: RTCCVPixelBuffer?,
-    frame: RTCVideoFrame
-  ) -> RTCVideoFrame {
-#if os(macOS) || targetEnvironment(macCatalyst)
-    var rotation = RTCVideoRotation._0
-#else
-    var rotation = RTCVideoRotation._90
-    switch sceneOrientation {
-    case let .portrait(isUpsideDown):
-      rotation = isUpsideDown ? ._270 : ._90
-    case let .landscape(isLeft):
-      switch (isLeft, currentCameraPosition == .front) {
-      case (true, true):
-        rotation = ._0
-      case (true, false):
-        rotation = ._180
-      case (false, true):
-        rotation = ._180
-      case (false, false):
-        rotation = ._0
+  private func process(_ frame: RTCVideoFrame, filter: VideoFilter) -> RTCVideoFrame {
+    guard let buffer = frame.buffer as? RTCCVPixelBuffer else { return frame }
+    let pixelBuffer = buffer.pixelBuffer
+    let width = CVPixelBufferGetWidth(pixelBuffer)
+    let height = CVPixelBufferGetHeight(pixelBuffer)
+    guard let outputBuffer = makeOutputBuffer(width: width, height: height) else { return frame }
+
+    let image = CIImage(cvPixelBuffer: pixelBuffer, options: [.colorSpace: colorSpace])
+    let result = filter.apply(to: image, rotationDegrees: frame.rotation.rawValue)
+    // Rendering in place aliases the input CIImage and may corrupt the camera's shared buffer.
+    context.render(result, to: outputBuffer, bounds: image.extent, colorSpace: colorSpace)
+    let output = RTCCVPixelBuffer(
+      pixelBuffer: outputBuffer,
+      adaptedWidth: buffer.width,
+      adaptedHeight: buffer.height,
+      cropWidth: buffer.cropWidth,
+      cropHeight: buffer.cropHeight,
+      cropX: buffer.cropX,
+      cropY: buffer.cropY
+    )
+    return RTCVideoFrame(buffer: output, rotation: frame.rotation, timeStampNs: frame.timeStampNs)
+  }
+
+  private func makeOutputBuffer(width: Int, height: Int) -> CVPixelBuffer? {
+    if pixelBufferPool == nil || poolWidth != width || poolHeight != height {
+      pixelBufferPool = nil
+      let attributes: [String: Any] = [
+        kCVPixelBufferWidthKey as String: width,
+        kCVPixelBufferHeightKey as String: height,
+        kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+        kCVPixelBufferIOSurfacePropertiesKey as String: [:],
+      ]
+      guard CVPixelBufferPoolCreate(nil, nil, attributes as CFDictionary, &pixelBufferPool) == kCVReturnSuccess else {
+        return nil
       }
+      poolWidth = width
+      poolHeight = height
     }
-#endif
-    if rotation != frame.rotation, let _buffer = buffer ?? frame.buffer as? RTCCVPixelBuffer {
-      return RTCVideoFrame(buffer: _buffer, rotation: rotation, timeStampNs: frame.timeStampNs)
-    } else if rotation != frame.rotation, buffer == nil {
-      return frame
-    } else {
-      return frame
-    }
-  }
-
-  private func filter(
-    image: CIImage,
-    pixelBuffer: CVPixelBuffer
-  ) async -> CIImage {
-    await selectedFilter?.filter(
-      VideoFilter.Input(
-        originalImage: image,
-        originalPixelBuffer: pixelBuffer,
-        originalImageOrientation: sceneOrientation.cgOrientation
-      )
-    ) ?? CIImage()
-  }
-}
-
-
-actor SerialActor {
-  private var previousTask: Task<Void, Error>?
-
-  func execute(_ block: @Sendable @escaping () async throws -> Void) async throws {
-    let task = Task { [previousTask] in
-      _ = await previousTask?.result
-      return try await block()
-    }
-
-    previousTask = task
-
-    try await task.value
-  }
-}
-
-enum StreamDeviceOrientation: Equatable {
-  case portrait(isUpsideDown: Bool)
-  case landscape(isLeft: Bool)
-
-  var isPortrait: Bool {
-    switch self {
-    case .landscape:
-      return false
-    case .portrait:
-      return true
-    }
-  }
-
-  var isLandscape: Bool {
-    switch self {
-    case .landscape:
-      return true
-    case .portrait:
-      return false
-    }
-  }
-
-  var cgOrientation: CGImagePropertyOrientation {
-    switch self {
-    case let .portrait(isUpsideDown):
-      return isUpsideDown ?.right : .left
-    case let .landscape(isLeft):
-      return isLeft ? .up : .down
-    }
+    guard let pool = pixelBufferPool else { return nil }
+    var output: CVPixelBuffer?
+    guard CVPixelBufferPoolCreatePixelBuffer(nil, pool, &output) == kCVReturnSuccess else { return nil }
+    return output
   }
 }
