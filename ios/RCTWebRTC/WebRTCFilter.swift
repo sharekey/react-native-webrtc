@@ -1,227 +1,158 @@
-//
-//  WebRTCFilter.swift
-//  react-native-webrtc
-//
-//  Created by  Denis on 18.12.24.
-//
-
 import Vision
-import WebRTC
 import CoreImage
 import Foundation
 import CoreImage.CIFilterBuiltins
 
-#if targetEnvironment(simulator)
-#else
-import MLCompute
-#endif
-
 class VideoFilter {
   struct Input {
+    // Images are upright here; the capture handler restores the buffer orientation after filtering.
     public var originalImage: CIImage
-    public var originalPixelBuffer: CVPixelBuffer
-    public var originalImageOrientation: CGImagePropertyOrientation
   }
 
   let name: String
-  var filter: (Input) async -> CIImage
+  var filter: (Input) -> CIImage
 
-  init(name: String, filter: @escaping (Input) async -> CIImage) {
+  init(name: String, filter: @escaping (Input) -> CIImage) {
     self.name = name
     self.filter = filter
+  }
+
+  func apply(to image: CIImage, rotationDegrees: Int) -> CIImage {
+    let orientation: CGImagePropertyOrientation
+    let inverse: CGImagePropertyOrientation
+    switch rotationDegrees {
+    case 90: (orientation, inverse) = (.right, .left)
+    case 180: (orientation, inverse) = (.down, .down)
+    case 270: (orientation, inverse) = (.left, .right)
+    default: (orientation, inverse) = (.up, .up)
+    }
+    let upright = image.oriented(orientation)
+    return filter(Input(originalImage: upright)).cropped(to: upright.extent).oriented(inverse)
   }
 }
 
 extension VideoFilter {
-  static let blurredBackground: VideoFilter = BlurBackgroundVideoFilter()
+  static var blurredBackground: VideoFilter { BlurBackgroundVideoFilter() }
+
   static func imageBackground(_ backgroundImage: CIImage) -> VideoFilter {
     ImageBackgroundVideoFilter(backgroundImage)
   }
 }
 
 protocol ImageFilterProcessor {
-  func applyFilter(_ pixelBuffer: CVPixelBuffer, backgroundImage: CIImage) -> CIImage?
-  func modify(buffer: CVPixelBuffer, maskBuffer: CVPixelBuffer, backgroundImage: CIImage) throws -> CIImage?
+  func applyFilter(_ image: CIImage, backgroundImage: CIImage) -> CIImage?
 }
 
 extension ImageFilterProcessor {
-  func modify(buffer: CVPixelBuffer, maskBuffer: CVPixelBuffer, backgroundImage: CIImage) throws -> CIImage? {
-    let originalImage = CIImage(cvPixelBuffer: buffer)
-    var maskImage = CIImage(cvPixelBuffer: maskBuffer)
-
-    let scaleX = originalImage.extent.width / maskImage.extent.width
-    let scaleY = originalImage.extent.height / maskImage.extent.height
-    maskImage = maskImage.transformed(by: .init(scaleX: scaleX, y: scaleY))
+  func modify(image: CIImage, maskBuffer: CVPixelBuffer, backgroundImage: CIImage) -> CIImage? {
+    let mask = CIImage(cvPixelBuffer: maskBuffer)
+    let maskImage = mask.transformed(by: .init(
+      scaleX: image.extent.width / mask.extent.width,
+      y: image.extent.height / mask.extent.height
+    )).transformed(by: .init(translationX: image.extent.minX, y: image.extent.minY))
 
     let blendFilter = CIFilter.blendWithMask()
-    blendFilter.inputImage = originalImage
+    blendFilter.inputImage = image
     blendFilter.backgroundImage = backgroundImage
     blendFilter.maskImage = maskImage
-
-    return blendFilter.outputImage
+    return blendFilter.outputImage?.cropped(to: image.extent)
   }
 }
 
 final class BlurBackgroundVideoFilter: VideoFilter {
-  private let processor: ImageFilterProcessor
-
   init() {
-    let name = String(describing: type(of: self))
-
-    if #available(iOS 17.0, *) {
-      self.processor = NewBackgroundImageFilterProcessor()
-    } else {
-      self.processor = BackgroundImageFilterProcessor()
-    }
-
-    super.init(name: name, filter: \.originalImage)
-
-    filter = { [processor] input in
-      let backgroundImage = input
-        .originalImage
+    let processor = BackgroundImageFilterProcessor()
+    super.init(name: "BlurBackgroundVideoFilter", filter: \.originalImage)
+    filter = { input in
+      let image = input.originalImage
+      let background = image.clampedToExtent()
         .applyingFilter("CIGaussianBlur")
-
-      return processor
-        .applyFilter(
-          input.originalPixelBuffer,
-          backgroundImage: backgroundImage
-        ) ?? input.originalImage
+        .cropped(to: image.extent)
+      return processor.applyFilter(image, backgroundImage: background) ?? background
     }
   }
 }
 
 final class ImageBackgroundVideoFilter: VideoFilter {
-  private struct CacheValue: Hashable {
-    var originalImageSize: CGSize
-    var originalImageOrientation: CGImagePropertyOrientation
-    var result: CIImage
-
-    func hash(into hasher: inout Hasher) {
-      hasher.combine(originalImageSize.width)
-      hasher.combine(originalImageSize.height)
-      hasher.combine(originalImageOrientation)
-    }
-  }
-
-  private let processor: ImageFilterProcessor
-  private var cachedValue: CacheValue?
   private let backgroundImage: CIImage
+  private var cachedBackground: CIImage?
 
-  init(_ backgroundImage: CIImage?) {
-    let name = String(describing: type(of: self))
-
-    if #available(iOS 17.0, *) {
-      self.processor = NewBackgroundImageFilterProcessor()
-    } else {
-      self.processor = BackgroundImageFilterProcessor()
-    }
-
-    self.backgroundImage = backgroundImage ?? CIImage()
-
-    super.init(name: name, filter: \.originalImage)
-
-    filter = { [processor, weak self] input in
-      guard
-        let backgroundImage = self?.backgroundImage(for: input)
-      else { return input.originalImage }
-
-      return processor.applyFilter(
-        input.originalPixelBuffer,
-        backgroundImage: backgroundImage
-      ) ?? input.originalImage
+  init(_ backgroundImage: CIImage) {
+    let processor = BackgroundImageFilterProcessor()
+    self.backgroundImage = backgroundImage
+    super.init(name: "ImageBackgroundVideoFilter", filter: \.originalImage)
+    filter = { [weak self] input in
+      guard let background = self?.backgroundImage(for: input.originalImage.extent) else {
+        return input.originalImage
+      }
+      return processor.applyFilter(input.originalImage, backgroundImage: background) ?? background
     }
   }
 
-  private func backgroundImage(for input: Input) -> CIImage {
-    if
-      let cachedValue = cachedValue,
-      cachedValue.originalImageSize == input.originalImage.extent.size,
-      cachedValue.originalImageOrientation == input.originalImageOrientation {
-      return cachedValue.result
-    } else {
-      var cachedBackgroundImage = backgroundImage.oriented(input.originalImageOrientation)
-
-      if cachedBackgroundImage.extent.size != input.originalImage.extent.size {
-        cachedBackgroundImage = cachedBackgroundImage
-          .resize(input.originalImage.extent.size) ?? cachedBackgroundImage
-      }
-
-      cachedValue = .init(
-        originalImageSize: input.originalImage.extent.size,
-        originalImageOrientation: input.originalImageOrientation,
-        result: cachedBackgroundImage
-      )
-      return cachedBackgroundImage
+  func backgroundImage(for extent: CGRect) -> CIImage {
+    if let cachedBackground = cachedBackground, cachedBackground.extent == extent {
+      return cachedBackground
     }
+    let scale = max(extent.width / backgroundImage.extent.width, extent.height / backgroundImage.extent.height)
+    let scaled = backgroundImage.transformed(by: .init(scaleX: scale, y: scale))
+    let result = scaled.transformed(by: .init(
+      translationX: extent.midX - scaled.extent.midX,
+      y: extent.midY - scaled.extent.midY
+    )).cropped(to: extent)
+    cachedBackground = result
+    return result
   }
 }
 
-@available(iOS 15.0, *)
 final class BackgroundImageFilterProcessor: ImageFilterProcessor {
   private let request: VNGeneratePersonSegmentationRequest
-  private let requestHandler: VNSequenceRequestHandler = .init()
+  private let requestHandler = VNSequenceRequestHandler()
 
   init() {
-    let request: VNGeneratePersonSegmentationRequest = .init()
+    let request = VNGeneratePersonSegmentationRequest()
     request.qualityLevel = .fast
-
     request.outputPixelFormat = kCVPixelFormatType_OneComponent8
     self.request = request
   }
 
-  func applyFilter(_ buffer: CVPixelBuffer, backgroundImage: CIImage) -> CIImage? {
+  func applyFilter(_ image: CIImage, backgroundImage: CIImage) -> CIImage? {
     do {
-      try requestHandler.perform([request], on: buffer)
-
-      if let maskPixelBuffer = request.results?.first?.pixelBuffer {
-        return try modify(buffer: buffer, maskBuffer: maskPixelBuffer, backgroundImage: backgroundImage)
+      // Reuse the video segmentation request; instance masks are too costly for live capture.
+      try requestHandler.perform([request], on: image, orientation: .up)
+      if let mask = request.results?.first?.pixelBuffer {
+        return modify(image: image, maskBuffer: mask, backgroundImage: backgroundImage)
       }
     } catch {
-      print(error)
+      print("Background segmentation failed: \(error)")
     }
-
     return backgroundImage
   }
 }
 
-@available(iOS 17.0, *)
-final class NewBackgroundImageFilterProcessor: ImageFilterProcessor {
-  private let maskRequest: VNGeneratePersonInstanceMaskRequest
+// Admit a frame before scheduling work so slow processing cannot retain a queue of camera buffers.
+final class CaptureFrameGate {
+  static let effectFrameIntervalNs: Int64 = 1_000_000_000 / 30
 
-  init() {
-    self.maskRequest = VNGeneratePersonInstanceMaskRequest()
+  private let lock = NSLock()
+  private var processing = false
+  private var lastTimestampNs: Int64?
+
+  func tryBegin(timestampNs: Int64, minimumIntervalNs: Int64) -> Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    guard !processing else { return false }
+    if let last = lastTimestampNs,
+       timestampNs <= last || timestampNs - last < minimumIntervalNs {
+      return false
+    }
+    processing = true
+    lastTimestampNs = timestampNs
+    return true
   }
 
-  func applyFilter(_ buffer: CVPixelBuffer, backgroundImage: CIImage) -> CIImage? {
-    do {
-      let handler = VNImageRequestHandler(ciImage: CIImage(cvPixelBuffer: buffer), options: [:])
-      try handler.perform([maskRequest])
-
-      if let observation = maskRequest.results?.first {
-        let maskPixelBuffer = try observation.generateMask(forInstances: observation.allInstances)
-        return try modify(buffer: buffer, maskBuffer: maskPixelBuffer, backgroundImage: backgroundImage)
-      }
-    } catch {
-      print(error)
-    }
-
-    return backgroundImage
-  }
-}
-
-extension CIImage {
-  func resize(_ targetSize: CGSize) -> CIImage? {
-    let scale = targetSize.height / (extent.height)
-    let aspectRatio = targetSize.width / ((extent.width) * scale)
-
-    if let filter = CIFilter(name: "CILanczosScaleTransform") {
-      filter.setValue(self, forKey: kCIInputImageKey)
-      filter.setValue(NSNumber(value: scale), forKey: kCIInputScaleKey)
-      filter.setValue(NSNumber(value: aspectRatio), forKey: kCIInputAspectRatioKey)
-
-      return filter.outputImage
-    }
-
-    return nil
+  func finish() {
+    lock.lock()
+    processing = false
+    lock.unlock()
   }
 }
